@@ -78,7 +78,8 @@ for line in "${ALL[@]}"; do
     label=$(lsblk -rno LABEL "/dev/$name" 2>/dev/null || true)
     fstype=$(lsblk -rno FSTYPE "/dev/$name" 2>/dev/null || true)
     free=$(df -h --output=avail "$mnt" | tail -1)
-    desc="${label:-без метки};/dev/$name ($fstype), $size, свободно ${free}, $mnt$( [[ $rm == 1 ]] && echo ', съёмный' )"
+    rem=''; [[ "$rm" == 1 ]] && rem=', съёмный'
+    desc="${label:-без метки};/dev/$name ($fstype), $size, свободно ${free}, $mnt${rem}"
     CAND+=("$mnt"); CAND_DESC+=("$mnt;$desc")
 done
 ((${#CAND[@]})) || die "не найдено смонтированных дисков. Смонтируй SSD и повтори."
