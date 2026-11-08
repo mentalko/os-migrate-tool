@@ -29,52 +29,96 @@ if [[ "$OS_ID" != ubuntu && "${ID_LIKE:-}" != *debian* ]]; then
 fi
 info "ОС: ${PRETTY_NAME:-$OS_ID}"
 
-# ---------- UI: whiptail или текстовый fallback ----------
-if command -v whiptail >/dev/null 2>&1; then
-    ui_checklist() { # $1=title, $2..: tag;desc;size;onoff
-        local title="$1"; shift
-        local -a args=()
-        for it in "$@"; do IFS=';' read -r t d s o <<<"$it"; args+=("$t" "$d [$s]" "$o"); done
-        whiptail --separate-output --checklist "$title" 24 78 12 "${args[@]}" 3>&1 1>&2 2>&3 || true
+# ---------- UI: собственный TUI со строкой-подсказкой под курсором ----------
+# формат пунктов: tag;desc;size;onoff[;hint]  (hint — то, что показывается внизу)
+ui_checklist() {
+    local title="$1"; shift
+    local -a tags=() descs=() sizes=() offs=() hints=()
+    local it t d s o h i m
+    for it in "$@"; do
+        IFS=';' read -r t d s o h <<<"$it"
+        tags+=("$t"); descs+=("$d"); sizes+=("$s"); offs+=("$o"); hints+=("${h:-$d}")
+    done
+    local cur=0
+    printf '\e[?25l'                      # спрятать курсор
+    _draw() {
+        printf '\e[H\e[J'
+        echo "== $title"
+        echo -e "  \e[2m↑/↓ — выбор · пробел — галочка · a — все · n — ничего · Enter — ок\e[0m"
+        echo
+        for i in "${!tags[@]}"; do
+            m=" "; [[ ${offs[i]} == ON ]] && m="x"
+            if (( i == cur )); then
+                printf '\e[7m  [%s] %-11s %-33s %9s \e[0m\n' "$m" "${tags[i]}" "${descs[i]}" "${sizes[i]}"
+            else
+                printf '  [%s] %-11s %-33s %9s\n' "$m" "${tags[i]}" "${descs[i]}" "${sizes[i]}"
+            fi
+        done
+        echo
+        printf '\e[2m  ↪ %s\e[0m\n' "${hints[cur]}"
     }
-    ui_menu() { # $1=title, $2..: tag;desc
-        local title="$1"; shift
-        local -a args=()
-        for it in "$@"; do args+=("${it%%;*}" "${it#*;}"); done
-        whiptail --menu "$title" 22 78 14 "${args[@]}" 3>&1 1>&2 2>&3 || true
+    _draw
+    while true; do
+        IFS= read -rsn1 key
+        case "$key" in
+            $'\x1b') read -rsn2 seq
+                case "$seq" in
+                    '[A') (( cur > 0 )) && (( cur-- ));;
+                    '[B') (( cur < ${#tags[@]}-1 )) && (( cur++ ));;
+                esac;;
+            ' '|' ') [[ ${offs[cur]} == ON ]] && offs[cur]=OFF || offs[cur]=ON;;
+            'a'|'A'|'ф'|'Ф') for i in "${!tags[@]}"; do offs[i]=ON; done;;
+            'n'|'N'|'т'|'Т') for i in "${!tags[@]}"; do offs[i]=OFF; done;;
+            '') break;;
+            *) continue;;
+        esac
+        _draw
+    done
+    printf '\e[?25h'
+    for i in "${!tags[@]}"; do [[ ${offs[i]} == ON ]] && echo "${tags[i]}"; done
+}
+
+ui_menu() { # одиночный выбор: tag;desc[;hint]
+    local title="$1"; shift
+    local -a tags=() descs=() hints=()
+    local it t d h i cur=0
+    for it in "$@"; do
+        IFS=';' read -r t d h <<<"$it"
+        tags+=("$t"); descs+=("$d"); hints+=("${h:-$d}")
+    done
+    printf '\e[?25l'
+    _drawm() {
+        printf '\e[H\e[J'
+        echo "== $title"
+        echo -e "  \e[2m↑/↓ — выбор · Enter — подтвердить\e[0m"
+        echo
+        for i in "${!tags[@]}"; do
+            if (( i == cur )); then
+                printf '\e[7m  ▶ %-11s %s \e[0m\n' "${tags[i]}" "${descs[i]}"
+            else
+                printf '    %-11s %s\n' "${tags[i]}" "${descs[i]}"
+            fi
+        done
+        echo
+        printf '\e[2m  ↪ %s\e[0m\n' "${hints[cur]}"
     }
-else
-    ui_checklist() { # fallback: tag;desc;size;onoff
-        local title="$1"; shift
-        local -a tags descs sizes offs
-        for it in "$@"; do IFS=';' read -r t d s o <<<"$it"
-            tags+=("$t"); descs+=("$d"); sizes+=("$s"); offs+=("$o"); done
-        local sel=(); for i in "${!tags[@]}"; do
-            [[ ${offs[i]} == ON ]] && sel+=("${tags[i]}"); done
-        while true; do
-            echo; echo "== $title"
-            for i in "${!tags[@]}"; do
-                local m=" "; [[ ${sel[*]} == *" ${tags[i]} "* || ${sel[0]:-} == "${tags[i]}" ]] && m="x"
-                printf "  [%s] %-12s %-45s %8s\n" "$m" "${tags[i]}" "${descs[i]}" "${sizes[i]}"; done
-            read -rp "Номера через пробел — переключить, Enter — подтвердить: " nums
-            [[ -z "${nums// }" ]] && break
-            for n in $nums; do (( n>=1 && n<=${#tags[@]} )) || continue
-                local t="${tags[n-1]}"; local found=0
-                for j in "${!sel[@]}"; do [[ ${sel[j]} == "$t" ]] && { unset 'sel[j]'; found=1; break; }; done
-                (( found )) || sel+=("$t")
-            done; sel=("${sel[@]:-}")
-        done; printf '%s\n' "${sel[@]}"
-    }
-    ui_menu() { # fallback: возвращает tag выбранного пункта
-        local title="$1"; shift
-        echo; echo "== $title"
-        local -a tags=() descs=()
-        for it in "$@"; do IFS=';' read -r t d <<<"$it"; tags+=("$t"); descs+=("$d"); done
-        for i in "${!tags[@]}"; do echo "  $((i+1))) ${tags[i]}  —  ${descs[i]}"; done
-        read -rp "Выбор (1-${#tags[@]}): " n
-        (( n>=1 && n<=${#tags[@]} )) && echo "${tags[n-1]}"
-    }
-fi
+    _drawm
+    while true; do
+        IFS= read -rsn1 key
+        case "$key" in
+            $'\x1b') read -rsn2 seq
+                case "$seq" in
+                    '[A') (( cur > 0 )) && (( cur-- ));;
+                    '[B') (( cur < ${#tags[@]}-1 )) && (( cur++ ));;
+                esac;;
+            '') break;;
+            *) continue;;
+        esac
+        _drawm
+    done
+    printf '\e[?25h'
+    echo "${tags[cur]}"
+}
 
 # ---------- 2. Выбор SSD ----------
 info "Поиск смонтированных дисков..."
@@ -112,12 +156,12 @@ APPS_FIND=$(find "$HOME/Applications" "$HOME/bin" "$HOME/Desktop" -maxdepth 1 -n
 appimg_size=0; [[ -n "$APPS_FIND" ]] && appimg_size=$(echo "$APPS_FIND" | xargs -r du -sm --apparent-size 2>/dev/null | awk '{s+=$1} END{print s+0}')
 
 ITEMS=(
-  "packages;манифесты apt/flatpak/vscode/dconf/cron;10-20M;ON"
-  "appimages;AppImage: $(echo "$APPS_FIND" | grep -c . || true) шт.;${appimg_size}M;$([[ $appimg_size -gt 0 ]] && echo ON || echo OFF)"
-  "dotfiles;конфиги, ssh, шрифты, история;$(size_of "${DOT_DIRS[@]}" "${DOT_FILES[@]}")M;ON"
-  "data;~/Documents;$(size_of Documents)M;ON"
-  "agents;AI-агенты + скиллы;$(size_of .qoder .codex .claude .agents .jcode)M;ON"
-  "browsers;профили браузеров целиком;$(size_of "${BROWSER_DIRS[@]}")M;OFF"
+  "packages;манифесты apt/flatpak/vscode/dconf/cron;10-20M;ON;dpkg --get-selections, flatpak list, code --list-extensions, dconf dump, crontab -l, systemd-user units"
+  "appimages;AppImage: $(echo "$APPS_FIND" | grep -c . || true) шт.;${appimg_size}M;$([[ $appimg_size -gt 0 ]] && echo ON || echo OFF);$(echo "$APPS_FIND" | sed "s|$HOME|~|g" | tr '\n' ' ')"
+  "dotfiles;конфиги, ssh, шрифты, история;$(size_of "${DOT_DIRS[@]}" "${DOT_FILES[@]}")M;ON;~/${DOT_DIRS[*]} ~/${DOT_FILES[*]}"
+  "data;~/Documents;$(size_of Documents)M;ON;~/Documents целиком, исключая os-migrate-tool и [10] SKILLS"
+  "agents;AI-агенты + скиллы;$(size_of .qoder .codex .claude .agents .jcode)M;ON;~/.qoder ~/.codex ~/.claude ~/.agents ~/.jcode ~/Documents/[10] SKILLS — сессии, задачи, скиллы"
+  "browsers;профили браузеров целиком;$(size_of "${BROWSER_DIRS[@]}")M;OFF;~/${BROWSER_DIRS[*]} — пароли, куки, расширения; на Cachy нужен пароль старого keyring"
 )
 
 # Полные пути — в терминал, чтобы не распирало диалог
@@ -129,7 +173,7 @@ echo "  data       : ~/Documents (без os-migrate-tool, [10] SKILLS)"
 echo "  agents     : ~/.qoder, ~/.codex, ~/.claude, ~/.agents, ~/.jcode, ~/Documents/[10] SKILLS"
 echo "  browsers   : ${BROWSER_DIRS[*]}" | sed "s| |, |g; s/^/               /"
 
-SEL=$(ui_checklist "Что пакуем?\n(пробел — галочка, Enter — ок; пути и итог — в терминале)" "${ITEMS[@]}")
+SEL=$(ui_checklist "Что пакуем?" "${ITEMS[@]}")
 [[ -n "$SEL" ]] || die "ничего не выбрано"
 mapfile -t SEL <<<"$SEL"
 
