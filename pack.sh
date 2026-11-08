@@ -176,6 +176,15 @@ source "$CONF"
 
 read -ra DOT_ARR    <<<"$DOT_DIRS $DOT_FILES"
 read -ra AGENT_ARR  <<<"$AGENT_DIRS $AGENT_CONFIG_DIRS"
+# сессии: отдельная переменная (актуализируется агентом на новой системе);
+# добавляем только пути, не покрытые родительскими каталогами из AGENT_*
+AGENT_EXTRA_SESSIONS=""
+for sp in ${AGENT_SESSIONS_DIRS:-}; do
+    covered=0
+    for ap in ${AGENT_DIRS} ${AGENT_CONFIG_DIRS}; do [[ "$sp" == "$ap"/* || "$sp" == "$ap" ]] && covered=1; done
+    (( covered )) || AGENT_EXTRA_SESSIONS+=" $sp"
+done
+read -ra AGENT_ARR <<<"$AGENT_ARR $AGENT_EXTRA_SESSIONS"
 read -ra BROWSER_ARR<<<"$BROWSER_DIRS"
 read -ra DATA_ARR   <<<"$DATA_DIRS"
 read -ra TMP_ARR    <<<"$TMP_DIRS"
@@ -216,6 +225,9 @@ for p in ${AGENT_DIRS}; do
 done
 for p in ${AGENT_CONFIG_DIRS}; do
     [[ -e "$HOME/$p" ]] && add_sub agents "agent:$p" "агент-конфиг: $p" "$(m_of "$HOME/$p")" ON "~/$p" "$p"
+done
+for p in $AGENT_EXTRA_SESSIONS; do
+    [[ -e "$HOME/$p" ]] && add_sub agents "agent:$p" "сессии: $p" "$(m_of "$HOME/$p")" ON "~/$p — сессии (AGENT_SESSIONS_DIRS)" "~/$p"
 done
 GRP_HAS_SUB[browsers]=1
 for p in "${BROWSER_ARR[@]}"; do
@@ -367,11 +379,8 @@ ui_tree ""
 GRP_CHOSEN=(); for g in "${MG_GROUPS[@]}"; do [[ ${GRP_STATE[$g]} == ON ]] && GRP_CHOSEN+=("$g"); done
 ((${#GRP_CHOSEN[@]})) || die "ничего не выбрано"
 
-mapfile -t GRP_CHOSEN <<<"$pick"; GRP_CHOSEN=("${GRP_CHOSEN[@]:-}")
-((${#GRP_CHOSEN[@]})) && [[ -n "${GRP_CHOSEN[0]}" ]] || die "ничего не выбрано"
-
 # разворачиваем выбор в SEL: группы без sub — сам тег; с sub — отмеченные подпункты
-declare -A SIZE_M
+declare -A SIZE_M GRP_SIZE_PLAN
 SEL=()
 for g in "${GRP_CHOSEN[@]}"; do
     if [[ ${GRP_HAS_SUB[$g]:-} ]]; then
@@ -380,18 +389,20 @@ for g in "${GRP_CHOSEN[@]}"; do
                 IFS=';' read -r _ sz _ _ p <<<"${SUBS[$g|$k]}"
                 SIZE_M[$k]="$sz"; PATH_OF[$k]="$p"
                 SEL+=("$k")
+                GRP_SIZE_PLAN[$g]=$(( ${GRP_SIZE_PLAN[$g]:-0} + sz ))
             fi
         done < <(SUB_KEYS "$g")
     else
         SIZE_M[$g]="${GRP_SIZE[$g]}"
         SEL+=("$g")
+        GRP_SIZE_PLAN[$g]=$(( ${GRP_SIZE_PLAN[$g]:-0} + ${GRP_SIZE[$g]} ))
     fi
 done
 ((${#SEL[@]})) || die "внутри выбранных групп ничего не отмечено"
 
 # ---------- 4. Итоговая оценка ----------
 total=0
-declare -A GRP_SEL   # group -> пути через пробел
+declare -A GRP_SEL
 echo; info "Выбрано:"
 for s in "${SEL[@]}"; do
     sz=${SIZE_M[$s]:-0}; total=$(( total + sz ))
@@ -410,6 +421,17 @@ echo "--------------------------------------------------"
 warn "Сырой объём: $(hM "$total")   оценка после tar.gz: ~$(hM "$est")   на SSD свободно: $free_h"
 free_mb=$(df -m --output=avail "$SSD" | tail -1)
 (( free_mb > est )) || die "на $SSD свободно $(hM "$free_mb") — мало для оценки ~$(hM "$est")"
+echo; info "Планируемые архивы:"
+declare -A PLAN_ROWS=( [packages]="packages/" [appimages]="appimages/" [dotfiles]=dotfiles.tar.gz [data]=data.tar.gz [agents]=agents.tar.gz [browsers]=browsers.tar.gz [flatpak]=flatpak-data.tar.gz [toolchain]=toolchain.tar.gz [tmp]=tmp.tar.gz [extra]=extra.tar.gz )
+plan_total=0
+for grp in packages appimages dotfiles data agents browsers flatpak toolchain tmp extra; do
+    [[ -n "${GRP_SIZE_PLAN[$grp]:-}" ]] || continue
+    gsz=${GRP_SIZE_PLAN[$grp]}
+    plan_total=$(( plan_total + gsz ))
+    echo "    ${PLAN_ROWS[$grp]}  —  $(hM "$gsz")"
+done
+echo "    --------------------------------------------"
+warn "Итого к записи: ~$(hM $(( plan_total * COMPRESS_ESTIMATE / 100 ))) (оценка tar.gz), на диске свободно: $free_h"
 read -rp "Начать упаковку? (y = да, Enter/N = отмена) " a
 if [[ ! ${a:-n} =~ ^[Yy]$ ]]; then
     warn "Отменено пользователем — ничего не записано."
