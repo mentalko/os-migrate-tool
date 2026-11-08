@@ -49,6 +49,16 @@ fi
 
 [[ $EUID -eq 0 ]] && die "не запускай от root — права на файлы поедут от root"
 
+# ---------- 0. --dry-run ----------
+DRY=0
+CLEAN_ARGS=()
+for arg in "$@"; do
+    if [[ "$arg" == "--dry-run" || "$arg" == "-n" ]]; then DRY=1; else CLEAN_ARGS+=("$arg"); fi
+done
+dry() { echo -e "\e[35m[dry-run]\e[0m $*"; }
+(( DRY )) && warn "РЕЖИМ DRY-RUN: ничего не будет установлено и распаковано, только отчёт."
+set -- "${CLEAN_ARGS[@]}"
+
 # ---------- 1. ОС ----------
 . /etc/os-release
 if [[ "${ID:-}" != cachyos && "${ID_LIKE:-}" != *arch* ]]; then
@@ -116,12 +126,15 @@ extract_tar() { # $1=archive file
     # конфликт = если первый путь архива уже существует в $HOME
     local first; first=$(tar -tzf "$arch" | head -1)
     if [[ -e "$HOME/$first" ]]; then
+        if (( DRY )); then dry "«$first» уже существует — спросил бы skip/backup/overwrite"; return 0; fi
         ask_conflict "$HOME/$first" || { warn "$name — пропущен"; return 0; }
     fi
+    if (( DRY )); then dry "распаковал бы $name ($(human "$arch")) -> \$HOME"; return 0; fi
     tar -xzf "$arch" -C "$HOME" && ok "$name — распакован ($(human "$arch"))"
 }
 
-MISSING="$RUN/missing-mapping.txt"; : > "$MISSING"
+if (( DRY )); then MISSING="/tmp/missing-mapping.dryrun.txt"; else MISSING="$RUN/missing-mapping.txt"; fi
+: > "$MISSING"
 
 # ---------- 4. Выполнение ----------
 for s in "${SEL[@]}"; do
@@ -136,7 +149,7 @@ for s in "${SEL[@]}"; do
                     skip) ok "  $pkg — skip (не переносится)";;
                     native|aur)
                         cmd=$(awk -F'\t' -v p="$pkg" '$1==p{print $3}' "$TOOL_DIR/mapping.tsv")
-                        [[ -n "$cmd" && "$cmd" != "-" ]] && { echo "  \$ $cmd"; eval "$cmd" && installed=$((installed+1)) || warn "  $pkg — установка не удалась"; }
+                        [[ -n "$cmd" && "$cmd" != "-" ]] && { echo "  \$ $cmd"; (( DRY )) && { dry "выполнил бы: $cmd"; installed=$((installed+1)); } || { eval "$cmd" && installed=$((installed+1)) || warn "  $pkg — установка не удалась"; }; }
                         ;;
                 esac
             done < "$TOOL_DIR/mapping.tsv"
@@ -148,30 +161,40 @@ for s in "${SEL[@]}"; do
             # flatpak
             if [[ -s "$RUN/packages/flatpak-list.txt" ]]; then
                 info "Flatpak-приложения:"
-                while read -r app; do [[ -n "$app" ]] && flatpak install -y flathub "$app" || warn "  flatpak $app — не установился"; done < "$RUN/packages/flatpak-list.txt"
+                while read -r app; do [[ -n "$app" ]] || continue; if (( DRY )); then dry "flatpak install -y flathub $app"; else flatpak install -y flathub "$app" || warn "  flatpak $app — не установился"; fi; done < "$RUN/packages/flatpak-list.txt"
             fi
             # vscode extensions
             if [[ -s "$RUN/packages/code-extensions.txt" ]] && command -v code >/dev/null; then
                 info "VS Code расширения:"
-                while read -r ext; do [[ -n "$ext" ]] && code --install-extension "$ext" || true; done < "$RUN/packages/code-extensions.txt"
+                while read -r ext; do [[ -n "$ext" ]] || continue; if (( DRY )); then dry "code --install-extension $ext"; else code --install-extension "$ext" || true; fi; done < "$RUN/packages/code-extensions.txt"
             fi
             # dconf
-            [[ -s "$RUN/packages/dconf.dump" ]] && dconf load / < "$RUN/packages/dconf.dump" && ok "dconf загружен"
+            if [[ -s "$RUN/packages/dconf.dump" ]]; then
+                if (( DRY )); then dry "dconf load / ($(wc -l < "$RUN/packages/dconf.dump") строк)"; else dconf load / < "$RUN/packages/dconf.dump" && ok "dconf загружен"; fi
+            fi
             # crontab
-            [[ -s "$RUN/packages/crontab.txt" ]] && crontab "$RUN/packages/crontab.txt" && ok "crontab восстановлен"
-            ok "packages: установлено $installed; нет в мапинге: $(wc -l < "$MISSING") строк -> $MISSING"
+            if [[ -s "$RUN/packages/crontab.txt" ]]; then
+                if (( DRY )); then dry "crontab: восстановил бы $(wc -l < "$RUN/packages/crontab.txt") записей"; else crontab "$RUN/packages/crontab.txt" && ok "crontab восстановлен"; fi
+            fi
+            ok "packages: ${DRY:+(dry-run) }установлено/план $installed; нет в мапинге: $(wc -l < "$MISSING") строк -> $MISSING"
             ;;
         appimages)
-            mkdir -p "$HOME/Applications"
-            n=0; while IFS= read -r f; do
-                [[ -f "$f" ]] && cp "$f" "$HOME/Applications/" && chmod +x "$HOME/Applications/$(basename "$f")" && n=$((n+1))
-            done < <(find "$RUN/appimages" -name '*.AppImage')
-            ok "appimages: $n шт. -> ~/Applications"
+            if (( DRY )); then
+                while IFS= read -r f; do [[ -f "$f" ]] && dry "cp $f -> ~/Applications/ && chmod +x"; done < <(find "$RUN/appimages" -name '*.AppImage')
+                ok "appimages (dry-run): $(find "$RUN/appimages" -name '*.AppImage' | wc -l) шт. -> ~/Applications"
+            else
+                mkdir -p "$HOME/Applications"
+                n=0; while IFS= read -r f; do
+                    [[ -f "$f" ]] && cp "$f" "$HOME/Applications/" && chmod +x "$HOME/Applications/$(basename "$f")" && n=$((n+1))
+                done < <(find "$RUN/appimages" -name '*.AppImage')
+                ok "appimages: $n шт. -> ~/Applications"
+            fi
             ;;
         dotfiles.tar.gz) extract_tar "$RUN/dotfiles.tar.gz";;
         data.tar.gz)     extract_tar "$RUN/data.tar.gz";;
         agents.tar.gz)   extract_tar "$RUN/agents.tar.gz";;
         browsers.tar.gz)
+            if (( DRY )); then dry "распаковал бы browsers.tar.gz после вопроса про keyring"; continue; fi
             warn "Перед распаковкой браузеров: пароли профиля привязаны к старому keyring."
             read -rp "Помнишь пароль старого keyring? [y/N] " a
             [[ ${a:-n} =~ ^[Yy]$ ]] || { warn "browsers пропущен — введи пароль keyring и повтори"; continue; }
@@ -180,7 +203,8 @@ for s in "${SEL[@]}"; do
 done
 
 # ---------- 5. Отчёт ----------
-echo; ok "===== ИТОГ ====="
+echo; ok "===== ИТОГ $([[ $DRY == 1 ]] && echo '(DRY-RUN — ничего не выполнено)' || echo '') ====="
 for s in "${SEL[@]}"; do echo "  • $s"; done
 [[ -s "$MISSING" ]] && warn "Нет в mapping.tsv ($(wc -l < "$MISSING")):  $MISSING — установи вручную (pacman -Si / yay -Ss / AppImage)"
+(( DRY )) && ok "Реальное восстановление: bash unpack.sh (без --dry-run)"
 ok "Готово."
