@@ -106,15 +106,24 @@ APPS_FIND=$(find "$HOME/Applications" "$HOME/bin" "$HOME/Desktop" -maxdepth 1 -n
 appimg_size=0; [[ -n "$APPS_FIND" ]] && appimg_size=$(echo "$APPS_FIND" | xargs -r du -sm --apparent-size 2>/dev/null | awk '{s+=$1} END{print s+0}')
 
 ITEMS=(
-  "packages;Манифесты apt/flatpak/vscode/dconf/cron/systemd;10-20M;ON"
-  "appimages;AppImage-файлы: ${APPS_FIND:+$(echo "$APPS_FIND" | wc -l)} шт.;${appimg_size}M;$([[ $appimg_size -gt 0 ]] && echo ON || echo OFF)"
-  "dotfiles;${DOT_DIRS[*]} ${DOT_FILES[*]};$(size_of "${DOT_DIRS[@]}" "${DOT_FILES[@]}")M;ON"
-  "data;~/Documents (без os-migrate-tool и [10] SKILLS);$(size_of Documents)M;ON"
-  "agents;.qoder .codex .claude .agents .jcode + [10] SKILLS;$(size_of .qoder .codex .claude .agents .jcode)M;ON"
-  "browsers;Chrome/Brave/Chromium/Firefox профили целиком;$(size_of "${BROWSER_DIRS[@]}")M;OFF"
+  "packages;манифесты apt/flatpak/vscode/dconf/cron;10-20M;ON"
+  "appimages;AppImage: $(echo "$APPS_FIND" | grep -c . || true) шт.;${appimg_size}M;$([[ $appimg_size -gt 0 ]] && echo ON || echo OFF)"
+  "dotfiles;конфиги, ssh, шрифты, история;$(size_of "${DOT_DIRS[@]}" "${DOT_FILES[@]}")M;ON"
+  "data;~/Documents;$(size_of Documents)M;ON"
+  "agents;AI-агенты + скиллы;$(size_of .qoder .codex .claude .agents .jcode)M;ON"
+  "browsers;профили браузеров целиком;$(size_of "${BROWSER_DIRS[@]}")M;OFF"
 )
 
-SEL=$(ui_checklist "Что пакуем? (пробел — галочка, Enter — ок)\nИтог и оценка сжатия — ниже." "${ITEMS[@]}")
+# Полные пути — в терминал, чтобы не распирало диалог
+echo; info "Что входит в каждый компонент:"
+echo "  packages   : манифесты (apt, flatpak, vscode, dconf, cron, systemd-user)"
+[[ -n "$APPS_FIND" ]] && echo "  appimages  : $(echo "$APPS_FIND" | sed "s|$HOME|~|g" | tr '\n' ' ')"
+echo "  dotfiles   : ${DOT_DIRS[*]} ${DOT_FILES[*]}" | sed "s| |, |g; s/^/               /"
+echo "  data       : ~/Documents (без os-migrate-tool, [10] SKILLS)"
+echo "  agents     : ~/.qoder, ~/.codex, ~/.claude, ~/.agents, ~/.jcode, ~/Documents/[10] SKILLS"
+echo "  browsers   : ${BROWSER_DIRS[*]}" | sed "s| |, |g; s/^/               /"
+
+SEL=$(ui_checklist "Что пакуем?\n(пробел — галочка, Enter — ок; пути и итог — в терминале)" "${ITEMS[@]}")
 [[ -n "$SEL" ]] || die "ничего не выбрано"
 mapfile -t SEL <<<"$SEL"
 
