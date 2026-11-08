@@ -161,7 +161,7 @@ touch "$SSD/.omt-write-test" 2>/dev/null && rm -f "$SSD/.omt-write-test" \
     || die "диск $SSD не доступен на запись (ro-маунт?)"
 ok "SSD: $SSD (свободно $(df -h --output=avail "$SSD" | tail -1))"
 
-# ---------- 3. Компоненты: гранулярный выбор ----------
+# ---------- 3. Компоненты: группы с проваливанием ----------
 hM() { awk -v m="$1" 'BEGIN{ if (m>=1024) printf "%.1fG", m/1024; else printf "%dM", m }'; }
 size_of() { local s=0 p; for p in "$@"; do [[ -e "$HOME/$p" || -e "$p" ]] && s=$(( s + $(du -sm --apparent-size "$HOME/$p" 2>/dev/null | cut -f1) )); done; echo "$s"; }
 m_of() { du -sm --apparent-size "$1" 2>/dev/null | cut -f1; }
@@ -173,35 +173,210 @@ BROWSER_DIRS=(.config/google-chrome .config/BraveSoftware .config/chromium .mozi
 
 APPS_FIND=$(find "$HOME/Applications" "$HOME/bin" "$HOME/Desktop" -maxdepth 1 -name '*.AppImage' 2>/dev/null || true)
 
-ITEMS=(); declare -A SIZE_M PATH_OF
-add_item() { # tag desc sizeMB onoff hint
-    ITEMS+=("$1;$2;$(hM "$3");$4;$5"); SIZE_M[$1]="$3"; PATH_OF[$1]="$6"
+MG_GROUPS=(packages appimages dotfiles data agents browsers)
+declare -A GRP_DESC GRP_HAS_SUB GRP_EXPANDED SUBS   # SUBS["grp|tag"]="desc;size;onoff;hint;path"
+add_sub() { # grp tag desc sizeMB onoff hint path
+    SUBS["$1|$2"]="$3;$4;$5;$6;$7"
 }
-
-add_item "packages" "манифесты apt/flatpak/vscode/dconf/cron" 15 ON \
-    "команды:|dpkg --get-selections|flatpak list|code --list-extensions|dconf dump /|crontab -l|systemctl --user list-unit-files" ""
+grp_total() { # сумма размеров подпунктов группы
+    local g="$1" t=0 k v
+    for k in "${!SUBS[@]}"; do [[ "$k" == "$g|"* ]] && { IFS=';' read -r _ v _ _ _ <<<"${SUBS[$k]}"; t=$(( t + v )); }; done
+    echo "$t"
+}
+# --- подпункты групп ---
 if [[ -n "$APPS_FIND" ]]; then
+    GRP_HAS_SUB[appimages]=1
     while IFS= read -r f; do
-        b=$(basename "$f")
-        add_item "appimg:$b" "AppImage: $b" "$(m_of "$f")" ON "~/$f" "$f"
+        b=$(basename "$f"); add_sub appimages "appimg:$b" "AppImage: $b" "$(m_of "$f")" ON "~/$f" "$f"
     done <<<"$APPS_FIND"
 fi
+GRP_HAS_SUB[dotfiles]=1
 for p in "${DOT_DIRS[@]}" "${DOT_FILES[@]}"; do
-    [[ -e "$HOME/$p" ]] && add_item "dot:$p" "$p" "$(m_of "$HOME/$p")" ON "~/$p" "~/$p"
+    [[ -e "$HOME/$p" ]] && add_sub dotfiles "dot:$p" "$p" "$(m_of "$HOME/$p")" ON "~/$p" "~/$p"
 done
-add_item "data" "~/Documents целиком" "$(m_of "$HOME/Documents")" ON \
-    "~/Documents целиком|исключая: os-migrate-tool, [10] SKILLS" "Documents"
+GRP_HAS_SUB[agents]=1
 for p in "${AGENT_DIRS[@]}"; do
-    [[ -e "$HOME/$p" ]] && add_item "agent:$p" "агент: $p" "$(m_of "$HOME/$p")" ON "~/$p" "~/$p"
+    [[ -e "$HOME/$p" ]] && add_sub agents "agent:$p" "агент: $p" "$(m_of "$HOME/$p")" ON "~/$p — сессии, задачи, скиллы" "~/$p"
 done
+GRP_HAS_SUB[browsers]=1
 for p in "${BROWSER_DIRS[@]}"; do
-    [[ -e "$HOME/$p" ]] && add_item "browser:$p" "браузер: $p" "$(m_of "$HOME/$p")" OFF \
-        "~/$p|пароли, куки, расширения — целиком|на Cachy понадобится пароль старого keyring" "$p"
+    [[ -e "$HOME/$p" ]] && add_sub browsers "browser:$p" "браузер: $p" "$(m_of "$HOME/$p")" OFF "~/$p|на Cachy понадобится пароль старого keyring" "$p"
 done
 
-SEL=$(ui_checklist "Что пакуем? (каждый путь отдельно)" "${ITEMS[@]}")
-[[ -n "$SEL" ]] || die "ничего не выбрано"
-mapfile -t SEL <<<"$SEL"
+# группы без подпунктов
+declare -A GRP_SIZE PATH_OF
+GRP_DESC[packages]="манифесты apt/flatpak/vscode/dconf/cron"; GRP_SIZE[packages]=15; PATH_OF[packages]=""
+GRP_DESC[appimages]="AppImage-программы"; GRP_SIZE[appimages]=0
+GRP_DESC[dotfiles]="конфиги, ssh, шрифты, история"; GRP_SIZE[dotfiles]=0
+GRP_DESC[data]="~/Documents целиком (без os-migrate-tool, [10] SKILLS)"; GRP_SIZE[data]="$(m_of "$HOME/Documents")"; PATH_OF[data]="Documents"
+GRP_DESC[agents]="AI-агенты: сессии, задачи, скиллы"; GRP_SIZE[agents]=0
+GRP_DESC[browsers]="профили браузеров (пароли, куки, расширения)"; GRP_SIZE[browsers]=0
+
+# состояние группы: ON/OFF; подпункты берут свои дефолты (browsers — OFF)
+declare -A GRP_STATE SUB_STATE
+for g in "${MG_GROUPS[@]}"; do GRP_STATE[$g]=ON; done
+GRP_STATE[browsers]=OFF
+for k in "${!SUBS[@]}"; do
+    IFS=';' read -r _ _ o _ _ <<<"${SUBS[$k]}"
+    SUB_STATE[$k]="$o"
+done
+
+# ---------- 3b. TUI: группы → подпункты ----------
+SUB_KEYS() { local g="$1" k; for k in "${!SUBS[@]}"; do [[ "$k" == "$g|"* ]] && echo "${k#*|}"; done; }
+
+ui_groups() { # главный чеклист групп; выход: выбранные группы через \n
+    local -a tags=() descs=() sizes=() offs=() hints=()
+    local g t sz sub_cnt n
+    for g in "${MG_GROUPS[@]}"; do
+        sz=${GRP_SIZE[$g]:-0}; [[ ${GRP_HAS_SUB[$g]:-} ]] && sz=$(grp_total "$g")
+        sub_cnt=0; mapfile -t _k < <(SUB_KEYS "$g"); sub_cnt=${#_k[@]}
+        n=0; local k
+        for k in "${_k[@]}"; do [[ ${SUB_STATE[$g|$k]:-} == ON ]] && n=$((n+1)); done
+        [[ ${GRP_STATE[$g]} == ON ]] && t=ON || t=OFF
+        local selinfo=""
+        [[ ${GRP_HAS_SUB[$g]:-} ]] && selinfo=" [$n/$sub_cnt выбрано] · → — детали"
+        tags+=("$g"); descs+=("${GRP_DESC[$g]}$selinfo"); sizes+=("$(hM "$sz")"); offs+=("$t")
+        hints+=("${GRP_DESC[$g]}")
+    done
+    local cur=0 m i tw=0
+    for i in "${!tags[@]}"; do (( ${#tags[i]} > tw )) && tw=${#tags[i]}; done
+    printf '\e[?25l' >&2
+    _draw_g() {
+        printf '\e[H\e[J' >&2
+        echo "== Что пакуем? (группы)" >&2
+        echo -e "  \e[2m↑/↓ — выбор · пробел — галочка · → — детали группы · Enter — ок\e[0m" >&2
+        echo >&2
+        for i in "${!tags[@]}"; do
+            m=" "; [[ ${offs[i]} == ON ]] && m="x"
+            if (( i == cur )); then
+                printf '\e[7m  [%s] %-*s  %s\e[0m\n' "$m" "$tw" "${tags[i]}" "${descs[i]}" >&2
+            else
+                printf '  [%s] %-*s  %s\n' "$m" "$tw" "${tags[i]}" "${descs[i]}" >&2
+            fi
+        done
+        echo >&2
+        printf '\e[2m  ↪ [%s]\e[0m\n' "${tags[cur]}" >&2
+        local hl
+        while IFS= read -r hl; do [[ -n "$hl" ]] && printf '\e[2m        %s\e[0m\n' "$hl" >&2; done \
+            < <(printf '%s' "${hints[cur]}" | tr '|' '\n')
+    }
+    _draw_g
+    while true; do
+        IFS= read -rsn1 key
+        case "$key" in
+            $'\x1b') read -rsn2 seq
+                case "$seq" in
+                    '[A') (( cur > 0 )) && (( cur-- ));;
+                    '[B') (( cur < ${#tags[@]}-1 )) && (( cur++ ));;
+                    '[C') { printf '\e[?25h' >&2; echo "${tags[cur]}:expand"; return 0; };;
+                esac;;
+            'j'|'J') (( cur < ${#tags[@]}-1 )) && (( cur++ ));;
+            'k'|'K') (( cur > 0 )) && (( cur-- ));;
+            ' '|' ') [[ ${offs[cur]} == ON ]] && offs[cur]=OFF || offs[cur]=ON; GRP_STATE[${tags[cur]}]=${offs[cur]}
+                local kk; for kk in $(SUB_KEYS "${tags[cur]}"); do SUB_STATE["${tags[cur]}|$kk"]=${offs[cur]}; done;;
+            'a'|'A') for i in "${!tags[@]}"; do offs[i]=ON; GRP_STATE[${tags[i]}]=ON; done;;
+            'n'|'N') for i in "${!tags[@]}"; do offs[i]=OFF; GRP_STATE[${tags[i]}]=OFF; done;;
+            '>'|'l'|'L'|'д'|'Д') { printf '\e[?25h' >&2; echo "${tags[cur]}:expand"; return 0; };;
+            ''|$'\n'|$'\r') break;;
+            *) continue;;
+        esac
+        _draw_g
+    done
+    printf '\e[H\e[J\e[?25h' >&2
+    for i in "${!tags[@]}"; do [[ ${offs[i]} == ON ]] && echo "${tags[i]}"; done
+    return 0
+}
+
+ui_sublist() { # $1=группа; чеклист её подпунктов; '←'/b — назад
+    local g="$1"
+    mapfile -t keys < <(SUB_KEYS "$g")
+    ((${#keys[@]})) || { warn "у группы $g нет подпунктов"; return 0; }
+    local -a descs=() sizes=() hints=()
+    local i k IFSv m
+    for k in "${keys[@]}"; do
+        IFSv=${SUBS[$g|$k]}; IFS=';' read -r _ d s o h <<<"$IFSv"
+        descs+=("$d"); sizes+=("$(hM "$s")"); hints+=("$h")
+    done
+    local cur=0 tw=0
+    for i in "${!keys[@]}"; do (( ${#keys[i]} > tw )) && tw=${#keys[i]}; done
+    printf '\e[?25l' >&2
+    _draw_s() {
+        printf '\e[H\e[J' >&2
+        echo "== $g — подпункты" >&2
+        echo -e "  \e[2m↑/↓ — выбор · пробел — галочка · ←/b — назад к группам\e[0m" >&2
+        echo >&2
+        for i in "${!keys[@]}"; do
+            m=" "; [[ ${SUB_STATE[$g|${keys[i]}]:-} == ON ]] && m="x"
+            if (( i == cur )); then
+                printf '\e[7m  [%s] %-*s %-34s %9s \e[0m\n' "$m" "$tw" "${keys[i]}" "${descs[i]}" "${sizes[i]}" >&2
+            else
+                printf '  [%s] %-*s %-34s %9s\n' "$m" "$tw" "${keys[i]}" "${descs[i]}" "${sizes[i]}" >&2
+            fi
+        done
+        echo >&2
+        printf '\e[2m  ↪ [%s]\e[0m\n' "${keys[cur]}" >&2
+        local hl
+        while IFS= read -r hl; do [[ -n "$hl" ]] && printf '\e[2m        %s\e[0m\n' "$hl" >&2; done \
+            < <(printf '%s' "${hints[cur]}" | tr '|' '\n')
+    }
+    _draw_s
+    while true; do
+        IFS= read -rsn1 key
+        case "$key" in
+            $'\x1b') read -rsn2 seq
+                case "$seq" in
+                    '[A') (( cur > 0 )) && (( cur-- ));;
+                    '[B') (( cur < ${#keys[@]}-1 )) && (( cur++ ));;
+                    '[D') break;;
+                    '') break;;
+                esac;;
+            'j'|'J') (( cur < ${#keys[@]}-1 )) && (( cur++ ));;
+            'k'|'K') (( cur > 0 )) && (( cur-- ));;
+            ' '|' ') [[ ${SUB_STATE[$g|${keys[cur]}]:-} == ON ]] && SUB_STATE[$g|${keys[cur]}]=OFF || SUB_STATE[$g|${keys[cur]}]=ON;;
+            'a'|'A') for i in "${!keys[@]}"; do SUB_STATE[$g|${keys[i]}]=ON; done;;
+            'n'|'N') for i in "${!keys[@]}"; do SUB_STATE[$g|${keys[i]}]=OFF; done;;
+            'b'|'B'|'и'|'И'|'<'|'h'|'H') break;;
+            ''|$'\n'|$'\r') break;;
+            *) continue;;
+        esac
+        _draw_s
+    done
+    printf '\e[H\e[J\e[?25h' >&2
+    return 0
+}
+
+# цикл: группы → детали → назад → Enter подтверждает
+while true; do
+    echo "DEBUG: GRP_DESC keys: ${!GRP_DESC[@]}" >&2
+pick=$(ui_groups "" )
+    if [[ "$pick" == *:expand ]]; then
+        g="${pick%%:*}"
+        [[ ${GRP_HAS_SUB[$g]:-} ]] && ui_sublist "$g" || warn "у группы $g нет подпунктов"
+        continue
+    fi
+    break
+done
+mapfile -t GRP_CHOSEN <<<"$pick"; GRP_CHOSEN=("${GRP_CHOSEN[@]:-}")
+((${#GRP_CHOSEN[@]})) && [[ -n "${GRP_CHOSEN[0]}" ]] || die "ничего не выбрано"
+
+# разворачиваем выбор в SEL: группы без sub — сам тег; с sub — отмеченные подпункты
+declare -A SIZE_M
+SEL=()
+for g in "${GRP_CHOSEN[@]}"; do
+    if [[ ${GRP_HAS_SUB[$g]:-} ]]; then
+        while IFS= read -r k; do
+            if [[ ${SUB_STATE[$g|$k]:-} == ON ]]; then
+                IFS=';' read -r _ _ sz _ _ p <<<"${SUBS[$g|$k]}"
+                SIZE_M[$k]="$sz"; PATH_OF[$k]="$p"
+                SEL+=("$k")
+            fi
+        done < <(SUB_KEYS "$g")
+    else
+        SIZE_M[$g]="${GRP_SIZE[$g]}"
+        SEL+=("$g")
+    fi
+done
+((${#SEL[@]})) || die "внутри выбранных групп ничего не отмечено"
 
 # ---------- 4. Итоговая оценка ----------
 total=0
