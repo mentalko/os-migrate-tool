@@ -14,6 +14,12 @@ human(){ du -sh --apparent-size "$1" 2>/dev/null | cut -f1; }
 
 [[ $EUID -eq 0 ]] && die "не запускай от root — потеряются права на файлы"
 
+# ---------- 0. --dry-run ----------
+DRY=0
+for arg in "$@"; do [[ "$arg" == "--dry-run" || "$arg" == "-n" ]] && DRY=1; done
+dry() { echo -e "\e[35m[dry-run]\e[0m $*"; }
+(( DRY )) && warn "РЕЖИМ DRY-RUN: ничего не будет записано, только отчёт о действиях."
+
 # ---------- 1. ОС ----------
 . /etc/os-release
 OS_ID="${ID:-linux}"
@@ -151,7 +157,11 @@ read -rp "Начать упаковку? [y/N] " a; [[ ${a:-n} =~ ^[Yy]$ ]] || e
 RUN_NAME="$(date +%F)_${OS_ID}"
 RUN_DIR="$TOOL_ROOT/archives/$RUN_NAME"
 if [[ -e "$RUN_DIR" ]]; then RUN_NAME="$(date +%F_%H%M)_${OS_ID}"; RUN_DIR="$TOOL_ROOT/archives/$RUN_NAME"; fi
-mkdir -p "$RUN_DIR/packages" "$RUN_DIR/appimages"
+if (( DRY )); then
+    dry "создал бы $RUN_DIR/{packages,appimages}/"
+else
+    mkdir -p "$RUN_DIR/packages" "$RUN_DIR/appimages"
+fi
 info "Прогон: $RUN_DIR"
 
 targz() { # $1=archive name, остальное — пути от $HOME
@@ -159,6 +169,7 @@ targz() { # $1=archive name, остальное — пути от $HOME
     local -a paths=(); local p
     for p in "$@"; do [[ -e "$HOME/$p" ]] && paths+=("$p"); done
     ((${#paths[@]})) || { warn "$1: нечего паковать, пропущен"; return 0; }
+    if (( DRY )); then dry "tar -czf $out  [пути: ${paths[*]}]"; return 0; fi
     ( cd "$HOME" && tar -czf "$out" --exclude-from="$TOOL_DIR/exclude.txt" --files-from <(printf '%s\n' "${paths[@]}") )
     ok "$1 — $(human "$out")"
 }
@@ -166,18 +177,27 @@ targz() { # $1=archive name, остальное — пути от $HOME
 for s in "${SEL[@]}"; do
     case "$s" in
         packages)
-            dpkg --get-selections > "$RUN_DIR/packages/apt-list.txt"
-            command -v flatpak >/dev/null && flatpak list --app --columns=application > "$RUN_DIR/packages/flatpak-list.txt" || true
-            command -v code >/dev/null && code --list-extensions > "$RUN_DIR/packages/code-extensions.txt" || true
-            command -v dconf >/dev/null && dconf dump / > "$RUN_DIR/packages/dconf.dump" || true
-            crontab -l > "$RUN_DIR/packages/crontab.txt" 2>/dev/null || true
-            systemctl --user list-unit-files --state=enabled --no-legend --plain > "$RUN_DIR/packages/systemd-user-units.txt" || true
-            ok "манифесты записаны в packages/"
+            if (( DRY )); then
+                dry "записал бы packages/{apt-list,flatpak-list,code-extensions,dconf.dump,crontab,systemd-user-units}.txt"
+            else
+                dpkg --get-selections > "$RUN_DIR/packages/apt-list.txt"
+                command -v flatpak >/dev/null && flatpak list --app --columns=application > "$RUN_DIR/packages/flatpak-list.txt" || true
+                command -v code >/dev/null && code --list-extensions > "$RUN_DIR/packages/code-extensions.txt" || true
+                command -v dconf >/dev/null && dconf dump / > "$RUN_DIR/packages/dconf.dump" || true
+                crontab -l > "$RUN_DIR/packages/crontab.txt" 2>/dev/null || true
+                systemctl --user list-unit-files --state=enabled --no-legend --plain > "$RUN_DIR/packages/systemd-user-units.txt" || true
+            fi
+            ok "манифесты ${DRY:+(dry-run) }готовы в packages/"
             ;;
         appimages)
-            echo "$APPS_FIND" > "$RUN_DIR/appimages/list.txt"
-            echo "$APPS_FIND" | while IFS= read -r f; do cp -v "$f" "$RUN_DIR/appimages/"; done | tail -3
-            ok "appimages: $(ls "$RUN_DIR/appimages"/*.AppImage 2>/dev/null | wc -l) шт."
+            if (( DRY )); then
+                dry "скопировал бы $(echo "$APPS_FIND" | grep -c .) AppImage в $RUN_DIR/appimages/"
+                echo "$APPS_FIND" | sed 's/^/    [dry-run] cp /'
+            else
+                echo "$APPS_FIND" > "$RUN_DIR/appimages/list.txt"
+                echo "$APPS_FIND" | while IFS= read -r f; do cp -v "$f" "$RUN_DIR/appimages/"; done | tail -3
+                ok "appimages: $(ls "$RUN_DIR/appimages"/*.AppImage 2>/dev/null | wc -l) шт."
+            fi
             ;;
         dotfiles) targz dotfiles.tar.gz "${DOT_DIRS[@]}" "${DOT_FILES[@]}";;
         data)     targz data.tar.gz Documents;;
@@ -188,13 +208,26 @@ done
 
 # ---------- 6. Самообновление инструмента на SSD ----------
 info "Синхронизация инструмента на SSD..."
-cp -v "$TOOL_DIR"/{pack.sh,unpack.sh,mapping.tsv,exclude.txt,README.md,SKILL.md} "$TOOL_ROOT/" 2>/dev/null | tail -1
+if (( DRY )); then
+    dry "скопировал бы pack.sh unpack.sh mapping.tsv exclude.txt README.md SKILL.md -> $TOOL_ROOT/"
+else
+    cp -v "$TOOL_DIR"/{pack.sh,unpack.sh,mapping.tsv,exclude.txt,README.md,SKILL.md} "$TOOL_ROOT/" 2>/dev/null | tail -1
+fi
 
 # ---------- 7. Манифест ----------
-( cd "$TOOL_ROOT/archives/$RUN_NAME" && find . -type f | sort > manifest.txt && sha256sum $(find . -type f ! -name manifest.txt | sort) >> manifest.txt )
-ln -sfn "$RUN_NAME" "$TOOL_ROOT/archives/latest"
-ok "manifest.txt записан; latest -> $RUN_NAME"
+if (( DRY )); then
+    dry "записал бы manifest.txt (дерево + sha256) и latest -> $RUN_NAME"
+else
+    ( cd "$TOOL_ROOT/archives/$RUN_NAME" && find . -type f | sort > manifest.txt && sha256sum $(find . -type f ! -name manifest.txt | sort) >> manifest.txt )
+    ln -sfn "$RUN_NAME" "$TOOL_ROOT/archives/latest"
+    ok "manifest.txt записан; latest -> $RUN_NAME"
+fi
 
 echo
-ok "Готово! Архив: $RUN_DIR  ($(human "$RUN_DIR"))"
-ok "На CachyOS запусти: $TOOL_ROOT/unpack.sh"
+if (( DRY )); then
+    ok "DRY-RUN завершён: ничего не записано. Планируемый архив: $RUN_DIR (~${est}M)"
+    ok "Реальный прогон: bash pack.sh (без --dry-run)"
+else
+    ok "Готово! Архив: $RUN_DIR  ($(human "$RUN_DIR"))"
+    ok "На CachyOS запусти: $TOOL_ROOT/unpack.sh"
+fi
