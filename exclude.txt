@@ -1,4 +1,4 @@
-# Исключения для tar (dotfiles/data/agents/browsers)
+# Базовые исключения — применяются ко ВСЕМ архивам (agents/browsers тоже)
 # Кэши и мусор
 .cache/
 .thumbnails/
@@ -15,12 +15,3 @@
 .zcode/v2/visualizations/
 .zcode/cli/plugins/cache/
 .local/share/Steam/
-# Дубли: браузеры едут отдельным архивом, агенты — отдельным
-.config/google-chrome/
-.config/BraveSoftware/
-.config/chromium/
-.mozilla/
-# os-migrate-tool не пакуем (живёт на SSD)
-Documents/os-migrate-tool/
-# Скиллы едут внутри agents
-Documents/[10] SKILLS/

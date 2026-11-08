@@ -416,8 +416,8 @@ else
 fi
 info "Прогон: $RUN_DIR"
 
-targz() { # $1=archive name, остальное — пути от $HOME
-    local out="$RUN_DIR/$1"; shift
+targz() { # $1=archive name, $2=exclude file, остальное — пути от $HOME
+    local out="$RUN_DIR/$1"; local excl="$2"; shift 2
     local -a paths=(); local p
     for p in "$@"; do [[ -e "$HOME/$p" ]] && paths+=("$p"); done
     ((${#paths[@]})) || { warn "$1: нечего паковать, пропущен"; return 0; }
@@ -428,7 +428,7 @@ targz() { # $1=archive name, остальное — пути от $HOME
         ok "$1 — ~$(hM "$raw") (оценка tar.gz: ~$(hM $(( raw*55/100 )))) [dry-run]"
         return 0
     fi
-    ( cd "$HOME" && tar -czf "$out" --exclude-from="$TOOL_DIR/exclude.txt" --files-from <(printf '%s\n' "${paths[@]}") )
+    ( cd "$HOME" && tar -czf "$out" --exclude-from="$TOOL_DIR/$excl" --files-from <(printf '%s\n' "${paths[@]}") )
     ok "$1 — $(human "$out")"
 }
 
@@ -460,17 +460,17 @@ if [[ -n "${GRP_SEL[appimg]:-}" ]]; then
         ok "appimages: $(ls "$RUN_DIR/appimages"/*.AppImage 2>/dev/null | wc -l) шт."
     fi
 fi
-[[ -n "${GRP_SEL[dot]:-}" ]]     && targz dotfiles.tar.gz ${GRP_SEL[dot]}
-[[ -n "${GRP_SEL[data]:-}" ]]    && targz data.tar.gz "${GRP_SEL[data]}"
-[[ -n "${GRP_SEL[agent]:-}" ]]   && targz agents.tar.gz ${GRP_SEL[agent]}
-[[ -n "${GRP_SEL[browser]:-}" ]] && targz browsers.tar.gz ${GRP_SEL[browser]}
+[[ -n "${GRP_SEL[dot]:-}" ]]     && targz dotfiles.tar.gz exclude-dedup.txt ${GRP_SEL[dot]}
+[[ -n "${GRP_SEL[data]:-}" ]]    && targz data.tar.gz exclude-dedup.txt "${GRP_SEL[data]}"
+[[ -n "${GRP_SEL[agent]:-}" ]]   && targz agents.tar.gz exclude.txt ${GRP_SEL[agent]}
+[[ -n "${GRP_SEL[browser]:-}" ]] && targz browsers.tar.gz exclude.txt ${GRP_SEL[browser]}
 
 # ---------- 6. Самообновление инструмента на SSD ----------
 info "Синхронизация инструмента на SSD..."
 if (( DRY )); then
-    dry "cp pack.sh unpack.sh mapping.tsv exclude.txt README.md SKILL.md -> $TOOL_ROOT/"
+    dry "cp pack.sh unpack.sh mapping.tsv exclude.txt exclude-dedup.txt README.md SKILL.md -> $TOOL_ROOT/"
 else
-    cp -v "$TOOL_DIR"/{pack.sh,unpack.sh,mapping.tsv,exclude.txt,README.md,SKILL.md} "$TOOL_ROOT/" 2>/dev/null | tail -1
+    cp -v "$TOOL_DIR"/{pack.sh,unpack.sh,mapping.tsv,exclude.txt,exclude-dedup.txt,README.md,SKILL.md} "$TOOL_ROOT/" 2>/dev/null | tail -1
 fi
 
 # ---------- 7. Манифест ----------
