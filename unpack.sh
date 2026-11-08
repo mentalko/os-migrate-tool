@@ -30,7 +30,7 @@ else
         local -a tags=() descs=()
         for it in "$@"; do IFS=';' read -r a b <<<"$it"; tags+=("$a"); descs+=("$b"); done
         for i in "${!tags[@]}"; do echo "  $((i+1))) ${tags[i]}  —  ${descs[i]}" >&2; done
-        read -rp "Выбор: " n >&2; (( n>=1 && n<=${#tags[@]} )) && echo "${tags[n-1]}"; }
+        read -rp "Выбор: " n >&2; (( n>=1 && n<=${#tags[@]} )) && echo "${tags[n-1]}"; return 0; }
     ui_checklist() { # $1=title, $2..: tag;desc;onoff
         local t="$1"; shift
         local -a tags=() descs=() offs=()
@@ -43,7 +43,7 @@ else
         read -rp "Номера через пробел (Enter — оставить как есть): " ns >&2
         for n in $ns; do (( n>=1 && n<=${#tags[@]} )) || continue
             [[ ${offs[n-1]} == ON ]] && offs[n-1]=OFF || offs[n-1]=ON; done
-        for i in "${!tags[@]}"; do [[ ${offs[i]} == ON ]] && echo "${tags[i]}"; done; }
+        for i in "${!tags[@]}"; do [[ ${offs[i]} == ON ]] && echo "${tags[i]}"; done; return 0; }
     ui_msg()  { echo; echo "== $1"; }
 fi
 

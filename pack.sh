@@ -81,6 +81,7 @@ ui_checklist() {
     done
     printf '\e[H\e[J\e[?25h' >&2          # стереть меню с экрана
     for i in "${!tags[@]}"; do [[ ${offs[i]} == ON ]] && echo "${tags[i]}"; done
+    return 0
 }
 
 ui_menu() { # одиночный выбор: tag;desc[;hint]
@@ -125,6 +126,7 @@ ui_menu() { # одиночный выбор: tag;desc[;hint]
     done
     printf '\e[H\e[J\e[?25h' >&2          # стереть меню с экрана
     echo "${tags[cur]}"
+    return 0
 }
 
 # ---------- 2. Выбор SSD ----------
