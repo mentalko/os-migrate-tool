@@ -26,11 +26,24 @@ if command -v whiptail >/dev/null 2>&1; then
     }
     ui_msg()  { whiptail --msgbox "$1" 20 78 || true; }
 else
-    ui_menu() { local t="$1"; shift; echo; echo "== $t"
+    ui_menu() { local t="$1"; shift; echo "== $t" >&2
         local -a tags=() descs=()
         for it in "$@"; do IFS=';' read -r a b <<<"$it"; tags+=("$a"); descs+=("$b"); done
-        for i in "${!tags[@]}"; do echo "  $((i+1))) ${tags[i]}  —  ${descs[i]}"; done
-        read -rp "Выбор: " n; (( n>=1 && n<=${#tags[@]} )) && echo "${tags[n-1]}"; }
+        for i in "${!tags[@]}"; do echo "  $((i+1))) ${tags[i]}  —  ${descs[i]}" >&2; done
+        read -rp "Выбор: " n >&2; (( n>=1 && n<=${#tags[@]} )) && echo "${tags[n-1]}"; }
+    ui_checklist() { # $1=title, $2..: tag;desc;onoff
+        local t="$1"; shift
+        local -a tags=() descs=() offs=()
+        local it a b c i m
+        for it in "$@"; do IFS=';' read -r a b c <<<"$it"; tags+=("$a"); descs+=("$b"); offs+=("$c"); done
+        echo "== $t" >&2
+        for i in "${!tags[@]}"; do
+            m=" "; [[ ${offs[i]} == ON ]] && m="x"
+            echo "  [$m] $((i+1))) ${tags[i]} — ${descs[i]}" >&2; done
+        read -rp "Номера через пробел (Enter — оставить как есть): " ns >&2
+        for n in $ns; do (( n>=1 && n<=${#tags[@]} )) || continue
+            [[ ${offs[n-1]} == ON ]] && offs[n-1]=OFF || offs[n-1]=ON; done
+        for i in "${!tags[@]}"; do [[ ${offs[i]} == ON ]] && echo "${tags[i]}"; done; }
     ui_msg()  { echo; echo "== $1"; }
 fi
 

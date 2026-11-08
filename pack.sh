@@ -40,22 +40,22 @@ ui_checklist() {
         tags+=("$t"); descs+=("$d"); sizes+=("$s"); offs+=("$o"); hints+=("${h:-$d}")
     done
     local cur=0
-    printf '\e[?25l'                      # спрятать курсор
-    _draw() {
-        printf '\e[H\e[J'
-        echo "== $title"
-        echo -e "  \e[2m↑/↓ или j/k — выбор · пробел — галочка · a — все · n — ничего · Enter — ок\e[0m"
-        echo
+    printf '\e[?25l' >&2                  # спрятать курсор
+    _draw() {                             # рисуем в stderr: stdout захватывается $()
+        printf '\e[H\e[J' >&2
+        echo "== $title" >&2
+        echo -e "  \e[2m↑/↓ или j/k — выбор · пробел — галочка · a — все · n — ничего · Enter — ок\e[0m" >&2
+        echo >&2
         for i in "${!tags[@]}"; do
             m=" "; [[ ${offs[i]} == ON ]] && m="x"
             if (( i == cur )); then
-                printf '\e[7m  [%s] %-11s %-33s %9s \e[0m\n' "$m" "${tags[i]}" "${descs[i]}" "${sizes[i]}"
+                printf '\e[7m  [%s] %-11s %-33s %9s \e[0m\n' "$m" "${tags[i]}" "${descs[i]}" "${sizes[i]}" >&2
             else
-                printf '  [%s] %-11s %-33s %9s\n' "$m" "${tags[i]}" "${descs[i]}" "${sizes[i]}"
+                printf '  [%s] %-11s %-33s %9s\n' "$m" "${tags[i]}" "${descs[i]}" "${sizes[i]}" >&2
             fi
         done
-        echo
-        printf '\e[2m  ↪ %s\e[0m\n' "${hints[cur]}"
+        echo >&2
+        printf '\e[2m  ↪ %s\e[0m\n' "${hints[cur]}" >&2
     }
     _draw
     while true; do
@@ -76,7 +76,7 @@ ui_checklist() {
         esac
         _draw
     done
-    printf '\e[?25h'
+    printf '\e[?25h' >&2
     for i in "${!tags[@]}"; do [[ ${offs[i]} == ON ]] && echo "${tags[i]}"; done
 }
 
@@ -88,21 +88,21 @@ ui_menu() { # одиночный выбор: tag;desc[;hint]
         IFS=';' read -r t d h <<<"$it"
         tags+=("$t"); descs+=("$d"); hints+=("${h:-$d}")
     done
-    printf '\e[?25l'
-    _drawm() {
-        printf '\e[H\e[J'
-        echo "== $title"
-        echo -e "  \e[2m↑/↓ — выбор · Enter — подтвердить\e[0m"
-        echo
+    printf '\e[?25l' >&2
+    _drawm() {                            # рисуем в stderr: stdout захватывается $()
+        printf '\e[H\e[J' >&2
+        echo "== $title" >&2
+        echo -e "  \e[2m↑/↓ или j/k — выбор · Enter — подтвердить\e[0m" >&2
+        echo >&2
         for i in "${!tags[@]}"; do
             if (( i == cur )); then
-                printf '\e[7m  ▶ %-11s %s \e[0m\n' "${tags[i]}" "${descs[i]}"
+                printf '\e[7m  ▶ %-11s %s \e[0m\n' "${tags[i]}" "${descs[i]}" >&2
             else
-                printf '    %-11s %s\n' "${tags[i]}" "${descs[i]}"
+                printf '    %-11s %s\n' "${tags[i]}" "${descs[i]}" >&2
             fi
         done
-        echo
-        printf '\e[2m  ↪ %s\e[0m\n' "${hints[cur]}"
+        echo >&2
+        printf '\e[2m  ↪ %s\e[0m\n' "${hints[cur]}" >&2
     }
     _drawm
     while true; do
@@ -120,7 +120,7 @@ ui_menu() { # одиночный выбор: tag;desc[;hint]
         esac
         _drawm
     done
-    printf '\e[?25h'
+    printf '\e[?25h' >&2
     echo "${tags[cur]}"
 }
 
