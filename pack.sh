@@ -254,141 +254,101 @@ for k in "${!SUBS[@]}"; do
     SUB_STATE[$k]="$o"
 done
 
-# ---------- 3b. TUI: группы → подпункты ----------
+# ---------- 3b. TUI: группы с разворотом подпунктов на месте ----------
 SUB_KEYS() { local g="$1" k; for k in "${!SUBS[@]}"; do [[ "$k" == "$g|"* ]] && echo "${k#*|}"; done; }
 
-ui_groups() { # главный чеклист групп; выход: выбранные группы через \n
-    local -a tags=() descs=() sizes=() offs=() hints=()
-    local g t sz sub_cnt n
-    for g in "${MG_GROUPS[@]}"; do
-        sz=${GRP_SIZE[$g]:-0}; [[ ${GRP_HAS_SUB[$g]:-} ]] && sz=$(grp_total "$g")
-        sub_cnt=0; mapfile -t _k < <(SUB_KEYS "$g"); sub_cnt=${#_k[@]}
-        n=0; local k
-        for k in "${_k[@]}"; do [[ ${SUB_STATE[$g|$k]:-} == ON ]] && n=$((n+1)); done
-        [[ ${GRP_STATE[$g]} == ON ]] && t=ON || t=OFF
-        local selinfo=""
-        [[ ${GRP_HAS_SUB[$g]:-} ]] && selinfo=" [$n/$sub_cnt выбрано] · → — детали"
-        tags+=("$g"); descs+=("${GRP_DESC[$g]}$selinfo"); sizes+=("$(hM "$sz")"); offs+=("$t")
-        hints+=("${GRP_DESC[$g]}")
-    done
-    local cur=0 m i tw=0
-    for i in "${!tags[@]}"; do (( ${#tags[i]} > tw )) && tw=${#tags[i]}; done
-    printf '\e[?25l' >&2
-    _draw_g() {
+declare -A GRP_EXPANDED
+ui_tree() { # плоский список: группы + (развёрнутые) подпункты; Enter — подтвердить
+    local -a rows=() tags=() descs=() sizes=() hints=() kinds=()   # kinds: grp|sub; rows: "g" или "g|tag"
+    local cur=0 m i tw=0 g k n cnt sz d h p o
+
+    build() {
+        rows=(); descs=(); sizes=(); hints=(); kinds=(); tw=0
+        for g in "${MG_GROUPS[@]}"; do
+            sz=$(grp_total "$g"); [[ -z ${GRP_HAS_SUB[$g]:-} ]] && sz=${GRP_SIZE[$g]:-0}; n=0; cnt=0
+            for k in $(SUB_KEYS "$g"); do
+                cnt=$((cnt+1)); [[ ${SUB_STATE[$g|$k]:-} == ON ]] && n=$((n+1))
+            done
+            local mark=""; [[ ${GRP_HAS_SUB[$g]:-} ]] && mark=" [${n}/${cnt}]"$([[ ${GRP_EXPANDED[$g]:-} ]] && echo ' · ← свернуть' || echo ' · → — раскрыть')
+            rows+=("$g"); tags+=("$g"); kinds+=(grp); descs+=("${GRP_DESC[$g]}$mark"); sizes+=("$(hM "$sz")")
+            hints+=("${GRP_DESC[$g]}|$([[ ${GRP_EXPANDED[$g]:-} ]] && echo 'подпункты раскрыты ниже' || echo '→ — показать подпункты')")
+            (( ${#g} > tw )) && tw=${#g} || true
+            if [[ ${GRP_EXPANDED[$g]:-} ]]; then
+                for k in $(SUB_KEYS "$g"); do
+                    IFS=';' read -r d s o h p <<<"${SUBS[$g|$k]}"
+                    rows+=("$g|$k"); tags+=("$k"); kinds+=(sub); descs+=("$d"); sizes+=("$(hM "$s")"); hints+=("$h")
+                    (( ${#k} > tw )) && tw=${#k} || true
+                done
+            fi
+        done
+    }
+
+    draw() {
         printf '\e[H\e[J' >&2
-        echo "== Что пакуем? (группы)" >&2
-        echo -e "  \e[2m↑/↓ — выбор · пробел — галочка · → — детали группы · Enter — ок\e[0m" >&2
+        echo "== Что пакуем?" >&2
+        echo -e "  \e[2m↑/↓ — курсор · пробел — галочка · →/← — раскрыть/свернуть группу · a/n — все/ничего · Enter — ок\e[0m" >&2
         echo >&2
-        for i in "${!tags[@]}"; do
-            m=" "; [[ ${offs[i]} == ON ]] && m="x"
+        for i in "${!rows[@]}"; do
+            m=" "
+            if [[ ${kinds[i]} == grp ]]; then [[ ${GRP_STATE[${rows[i]}]} == ON ]] && m="x"
+            else [[ ${SUB_STATE[${rows[i]}]:-} == ON ]] && m="x"; fi
+            local prefix="  "
+            [[ ${kinds[i]} == sub ]] && prefix="    \e[2m└\e[0m "
             if (( i == cur )); then
-                printf '\e[7m  [%s] %-*s  %s\e[0m\n' "$m" "$tw" "${tags[i]}" "${descs[i]}" >&2
+                printf '\e[7m%s[%s] %-*s %-38s %9s \e[0m\n' "$prefix" "$m" "$tw" "${tags[i]}" "${descs[i]}" "${sizes[i]}" >&2
             else
-                printf '  [%s] %-*s  %s\n' "$m" "$tw" "${tags[i]}" "${descs[i]}" >&2
+                printf '%s[%s] %-*s %-38s %9s\n' "$prefix" "$m" "$tw" "${tags[i]}" "${descs[i]}" "${sizes[i]}" >&2
             fi
         done
         echo >&2
-        printf '\e[2m  ↪ [%s]\e[0m\n' "${tags[cur]}" >&2
+        printf '\e[2m  ↪ [%s]\e[0m\n' "${descs[cur]%% [*}" >&2
         local hl
         while IFS= read -r hl; do [[ -n "$hl" ]] && printf '\e[2m        %s\e[0m\n' "$hl" >&2; done \
             < <(printf '%s' "${hints[cur]}" | tr '|' '\n')
     }
-    _draw_g
+
+    toggle() {
+        local r="${rows[cur]}"
+        if [[ ${kinds[cur]} == grp ]]; then
+            local ns=OFF; [[ ${GRP_STATE[$r]} == ON ]] && ns=ON
+            GRP_STATE[$r]="$ns"
+            local kk; for kk in $(SUB_KEYS "$r"); do SUB_STATE["$r|$kk"]="$ns"; done
+        else
+            [[ ${SUB_STATE[$r]:-} == ON ]] && SUB_STATE[$r]=OFF || SUB_STATE[$r]=ON
+        fi
+    }
+
+    build; draw
     while true; do
         IFS= read -rsn1 key
         case "$key" in
             $'\x1b') read -rsn2 seq
                 case "$seq" in
                     '[A') (( cur > 0 )) && (( cur-- ));;
-                    '[B') (( cur < ${#tags[@]}-1 )) && (( cur++ ));;
-                    '[C') { printf '\e[?25h' >&2; echo "${tags[cur]}:expand"; return 0; };;
+                    '[B') (( cur < ${#rows[@]}-1 )) && (( cur++ ));;
+                    '[C') [[ ${kinds[cur]} == grp && ${GRP_HAS_SUB[${rows[cur]}]:-} ]] && { if [[ ${GRP_EXPANDED[${rows[cur]}]:-} ]]; then unset 'GRP_EXPANDED[${rows[cur]}]'; else GRP_EXPANDED[${rows[cur]}]=1; fi; };;
+                    '[D') [[ ${kinds[cur]} == grp ]] && unset "GRP_EXPANDED[${rows[cur]}]";;
                 esac;;
-            'j'|'J') (( cur < ${#tags[@]}-1 )) && (( cur++ ));;
+            'j'|'J') (( cur < ${#rows[@]}-1 )) && (( cur++ ));;
             'k'|'K') (( cur > 0 )) && (( cur-- ));;
-            ' '|' ') [[ ${offs[cur]} == ON ]] && offs[cur]=OFF || offs[cur]=ON; GRP_STATE[${tags[cur]}]=${offs[cur]}
-                local kk; for kk in $(SUB_KEYS "${tags[cur]}"); do SUB_STATE["${tags[cur]}|$kk"]=${offs[cur]}; done;;
-            'a'|'A') for i in "${!tags[@]}"; do offs[i]=ON; GRP_STATE[${tags[i]}]=ON; done;;
-            'n'|'N') for i in "${!tags[@]}"; do offs[i]=OFF; GRP_STATE[${tags[i]}]=OFF; done;;
-            '>'|'l'|'L'|'д'|'Д') { printf '\e[?25h' >&2; echo "${tags[cur]}:expand"; return 0; };;
+            ' '|',') toggle;;
+            '>'|'l'|'L'|'д'|'Д') [[ ${kinds[cur]} == grp && ${GRP_HAS_SUB[${rows[cur]}]:-} ]] && GRP_EXPANDED[${rows[cur]}]=1;;
+            '<'|'h'|'H'|'b'|'B') [[ ${kinds[cur]} == grp ]] && unset "GRP_EXPANDED[${rows[cur]}]";;
+            'a'|'A'|'ф'|'Ф') for g in "${MG_GROUPS[@]}"; do GRP_STATE[$g]=ON; local kk; for kk in $(SUB_KEYS "$g"); do SUB_STATE["$g|$kk"]=ON; done; done;;
+            'n'|'N'|'т'|'Т') for g in "${MG_GROUPS[@]}"; do GRP_STATE[$g]=OFF; local kk2; for kk2 in $(SUB_KEYS "$g"); do SUB_STATE["$g|$kk2"]=OFF; done; done;;
             ''|$'\n'|$'\r') break;;
             *) continue;;
         esac
-        _draw_g
-    done
-    printf '\e[H\e[J\e[?25h' >&2
-    for i in "${!tags[@]}"; do [[ ${offs[i]} == ON ]] && echo "${tags[i]}"; done
-    return 0
-}
-
-ui_sublist() { # $1=группа; чеклист её подпунктов; '←'/b — назад
-    local g="$1"
-    mapfile -t keys < <(SUB_KEYS "$g")
-    ((${#keys[@]})) || { warn "у группы $g нет подпунктов"; return 0; }
-    local -a descs=() sizes=() hints=()
-    local i k IFSv m
-    for k in "${keys[@]}"; do
-        IFSv=${SUBS[$g|$k]}; IFS=';' read -r _ d s o h <<<"$IFSv"
-        descs+=("$d"); sizes+=("$(hM "$s")"); hints+=("$h")
-    done
-    local cur=0 tw=0
-    for i in "${!keys[@]}"; do (( ${#keys[i]} > tw )) && tw=${#keys[i]}; done
-    printf '\e[?25l' >&2
-    _draw_s() {
-        printf '\e[H\e[J' >&2
-        echo "== $g — подпункты" >&2
-        echo -e "  \e[2m↑/↓ — выбор · пробел — галочка · ←/b — назад к группам\e[0m" >&2
-        echo >&2
-        for i in "${!keys[@]}"; do
-            m=" "; [[ ${SUB_STATE[$g|${keys[i]}]:-} == ON ]] && m="x"
-            if (( i == cur )); then
-                printf '\e[7m  [%s] %-*s %-34s %9s \e[0m\n' "$m" "$tw" "${keys[i]}" "${descs[i]}" "${sizes[i]}" >&2
-            else
-                printf '  [%s] %-*s %-34s %9s\n' "$m" "$tw" "${keys[i]}" "${descs[i]}" "${sizes[i]}" >&2
-            fi
-        done
-        echo >&2
-        printf '\e[2m  ↪ [%s]\e[0m\n' "${keys[cur]}" >&2
-        local hl
-        while IFS= read -r hl; do [[ -n "$hl" ]] && printf '\e[2m        %s\e[0m\n' "$hl" >&2; done \
-            < <(printf '%s' "${hints[cur]}" | tr '|' '\n')
-    }
-    _draw_s
-    while true; do
-        IFS= read -rsn1 key
-        case "$key" in
-            $'\x1b') read -rsn2 seq
-                case "$seq" in
-                    '[A') (( cur > 0 )) && (( cur-- ));;
-                    '[B') (( cur < ${#keys[@]}-1 )) && (( cur++ ));;
-                    '[D') break;;
-                    '') break;;
-                esac;;
-            'j'|'J') (( cur < ${#keys[@]}-1 )) && (( cur++ ));;
-            'k'|'K') (( cur > 0 )) && (( cur-- ));;
-            ' '|' ') [[ ${SUB_STATE[$g|${keys[cur]}]:-} == ON ]] && SUB_STATE[$g|${keys[cur]}]=OFF || SUB_STATE[$g|${keys[cur]}]=ON;;
-            'a'|'A') for i in "${!keys[@]}"; do SUB_STATE[$g|${keys[i]}]=ON; done;;
-            'n'|'N') for i in "${!keys[@]}"; do SUB_STATE[$g|${keys[i]}]=OFF; done;;
-            'b'|'B'|'и'|'И'|'<'|'h'|'H') break;;
-            ''|$'\n'|$'\r') break;;
-            *) continue;;
-        esac
-        _draw_s
+        build; draw
     done
     printf '\e[H\e[J\e[?25h' >&2
     return 0
 }
 
-# цикл: группы → детали → назад → Enter подтверждает
-while true; do
-    echo "DEBUG: GRP_DESC keys: ${!GRP_DESC[@]}" >&2
-pick=$(ui_groups "" )
-    if [[ "$pick" == *:expand ]]; then
-        g="${pick%%:*}"
-        [[ ${GRP_HAS_SUB[$g]:-} ]] && ui_sublist "$g" || warn "у группы $g нет подпунктов"
-        continue
-    fi
-    break
-done
+ui_tree ""
+GRP_CHOSEN=(); for g in "${MG_GROUPS[@]}"; do [[ ${GRP_STATE[$g]} == ON ]] && GRP_CHOSEN+=("$g"); done
+((${#GRP_CHOSEN[@]})) || die "ничего не выбрано"
+
 mapfile -t GRP_CHOSEN <<<"$pick"; GRP_CHOSEN=("${GRP_CHOSEN[@]:-}")
 ((${#GRP_CHOSEN[@]})) && [[ -n "${GRP_CHOSEN[0]}" ]] || die "ничего не выбрано"
 
