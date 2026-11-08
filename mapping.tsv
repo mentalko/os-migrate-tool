@@ -1,0 +1,40 @@
+# ubuntu_pkg<TAB>status<TAB>install_cmd<TAB>notes
+# status: native = pacman-репо | aur = через yay | skip = не переносить
+# Нет строки в этом файле -> пакет НЕ ставится, попадает в missing-mapping.txt
+firefox	native	sudo pacman -S firefox
+thunderbird	native	sudo pacman -S thunderbird
+vlc	native	sudo pacman -S vlc
+keepassxc	native	sudo pacman -S keepassxc
+flameshot	native	sudo pacman -S flameshot
+obs-studio	native	sudo pacman -S obs-studio
+gimp	native	sudo pacman -S gimp
+htop	native	sudo pacman -S htop
+tree	native	sudo pacman -S tree
+jq	native	sudo pacman -S jq
+git	native	sudo pacman -S git
+zsh	native	sudo pacman -S zsh
+neovim	native	sudo pacman -S neovim
+curl	native	sudo pacman -S curl
+wget	native	sudo pacman -S wget
+docker	native	sudo pacman -S docker docker-compose	затем usermod -aG docker $USER
+docker-compose	native	-
+python-pip	native	sudo pacman -S python-pip
+nodejs	native	sudo pacman -S nodejs npm
+npm	native	-
+flatpak	native	sudo pacman -S flatpak
+telegram-desktop	native	sudo pacman -S telegram-desktop
+google-chrome-stable	aur	yay -S google-chrome-stable
+visual-studio-code	aur	yay -S visual-studio-code-bin
+discord	aur	yay -S discord
+slack	aur	yay -S slack-desktop
+zoom	aur	yay -S zoom
+spotify-client	aur	yay -S spotify
+obsidian	aur	yay -S obsidian-appimage
+anydesk	aur	yay -S anydesk-bin
+sublime-text	aur	yay -S sublime-text-4
+snapd	skip	-	snap на Arch не переносится
+ubuntu-desktop	skip	-	метапакет Ubuntu
+ubuntu-minimal	skip	-	метапакет Ubuntu
+ubuntu-standard	skip	-	метапакет Ubuntu
+gnome-shell	skip	-	DE ставится отдельно на Cachy
+libreoffice-core	skip	-	ставится libreoffice-fresh целиком

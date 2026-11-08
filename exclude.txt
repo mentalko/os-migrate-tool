@@ -1,0 +1,26 @@
+# Исключения для tar (dotfiles/data/agents/browsers)
+# Кэши и мусор
+.cache/
+.thumbnails/
+.local/share/Trash/
+*/node_modules/
+*/.venv/
+*/venv/
+*/__pycache__/
+*/site-packages/
+*/target/
+*/dist/
+*.pyc
+# Тяжёлое и невоспроизводимое
+.zcode/v2/visualizations/
+.zcode/cli/plugins/cache/
+.local/share/Steam/
+# Дубли: браузеры едут отдельным архивом, агенты — отдельным
+.config/google-chrome/
+.config/BraveSoftware/
+.config/chromium/
+.mozilla/
+# os-migrate-tool не пакуем (живёт на SSD)
+Documents/os-migrate-tool/
+# Скиллы едут внутри agents
+Documents/[10] SKILLS/
