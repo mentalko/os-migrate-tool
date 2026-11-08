@@ -235,7 +235,7 @@ RUN_NAME="$(date +%F)_${OS_ID}"
 RUN_DIR="$TOOL_ROOT/archives/$RUN_NAME"
 if [[ -e "$RUN_DIR" ]]; then RUN_NAME="$(date +%F_%H%M)_${OS_ID}"; RUN_DIR="$TOOL_ROOT/archives/$RUN_NAME"; fi
 if (( DRY )); then
-    dry "создал бы $RUN_DIR/{packages,appimages}/"
+    dry "mkdir -p $RUN_DIR/{packages,appimages}/"
 else
     mkdir -p "$RUN_DIR/packages" "$RUN_DIR/appimages"
 fi
@@ -246,14 +246,25 @@ targz() { # $1=archive name, остальное — пути от $HOME
     local -a paths=(); local p
     for p in "$@"; do [[ -e "$HOME/$p" ]] && paths+=("$p"); done
     ((${#paths[@]})) || { warn "$1: нечего паковать, пропущен"; return 0; }
-    if (( DRY )); then dry "tar -czf $out  [пути: ${paths[*]}]"; return 0; fi
+    if (( DRY )); then
+        local raw=0
+        for p in "${paths[@]}"; do raw=$(( raw + $(m_of "$HOME/$p") )); done
+        dry "tar -czf $out  (${paths[*]})"
+        ok "$1 — ~$(hM "$raw") (оценка tar.gz: ~$(hM $(( raw*55/100 )))) [dry-run]"
+        return 0
+    fi
     ( cd "$HOME" && tar -czf "$out" --exclude-from="$TOOL_DIR/exclude.txt" --files-from <(printf '%s\n' "${paths[@]}") )
     ok "$1 — $(human "$out")"
 }
 
 if [[ -n "${GRP_SEL[packages]:-}" ]]; then
     if (( DRY )); then
-        dry "записал бы packages/{apt-list,flatpak-list,code-extensions,dconf.dump,crontab,systemd-user-units}.txt"
+        dry "dpkg --get-selections > packages/apt-list.txt"
+    dry "flatpak list --app > packages/flatpak-list.txt"
+    dry "code --list-extensions > packages/code-extensions.txt"
+    dry "dconf dump / > packages/dconf.dump"
+    dry "crontab -l > packages/crontab.txt"
+    dry "systemctl --user list-unit-files > packages/systemd-user-units.txt"
     else
         dpkg --get-selections > "$RUN_DIR/packages/apt-list.txt"
         command -v flatpak >/dev/null && flatpak list --app --columns=application > "$RUN_DIR/packages/flatpak-list.txt" || true
@@ -267,8 +278,7 @@ fi
 if [[ -n "${GRP_SEL[appimg]:-}" ]]; then
     read -ra APPS_SEL <<<"${GRP_SEL[appimg]}"
     if (( DRY )); then
-        dry "скопировал бы ${#APPS_SEL[@]} AppImage в $RUN_DIR/appimages/"
-        printf '    [dry-run] cp %s\n' "${APPS_SEL[@]}"
+        printf '    [dry-run] cp %s -> $RUN_DIR/appimages/\n' "${APPS_SEL[@]}"
     else
         printf '%s\n' "${APPS_SEL[@]}" > "$RUN_DIR/appimages/list.txt"
         printf '%s\n' "${APPS_SEL[@]}" | while IFS= read -r f; do cp -v "$f" "$RUN_DIR/appimages/"; done | tail -3
@@ -283,14 +293,14 @@ fi
 # ---------- 6. Самообновление инструмента на SSD ----------
 info "Синхронизация инструмента на SSD..."
 if (( DRY )); then
-    dry "скопировал бы pack.sh unpack.sh mapping.tsv exclude.txt README.md SKILL.md -> $TOOL_ROOT/"
+    dry "cp pack.sh unpack.sh mapping.tsv exclude.txt README.md SKILL.md -> $TOOL_ROOT/"
 else
     cp -v "$TOOL_DIR"/{pack.sh,unpack.sh,mapping.tsv,exclude.txt,README.md,SKILL.md} "$TOOL_ROOT/" 2>/dev/null | tail -1
 fi
 
 # ---------- 7. Манифест ----------
 if (( DRY )); then
-    dry "записал бы manifest.txt (дерево + sha256) и latest -> $RUN_NAME"
+    dry "manifest.txt записан (дерево + sha256); latest -> $RUN_NAME"
 else
     ( cd "$TOOL_ROOT/archives/$RUN_NAME" && find . -type f | sort > manifest.txt && sha256sum $(find . -type f ! -name manifest.txt | sort) >> manifest.txt )
     ln -sfn "$RUN_NAME" "$TOOL_ROOT/archives/latest"

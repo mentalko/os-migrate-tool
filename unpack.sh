@@ -126,10 +126,10 @@ extract_tar() { # $1=archive file
     # конфликт = если первый путь архива уже существует в $HOME
     local first; first=$(tar -tzf "$arch" | head -1)
     if [[ -e "$HOME/$first" ]]; then
-        if (( DRY )); then dry "«$first» уже существует — спросил бы skip/backup/overwrite"; return 0; fi
+        if (( DRY )); then dry "«$first» уже существует — skip/backup/overwrite (выбор)"; return 0; fi
         ask_conflict "$HOME/$first" || { warn "$name — пропущен"; return 0; }
     fi
-    if (( DRY )); then dry "распаковал бы $name ($(human "$arch")) -> \$HOME"; return 0; fi
+    if (( DRY )); then ok "$name — распакован ($(human "$arch")) [dry-run]"; return 0; fi
     tar -xzf "$arch" -C "$HOME" && ok "$name — распакован ($(human "$arch"))"
 }
 
@@ -149,7 +149,7 @@ for s in "${SEL[@]}"; do
                     skip) ok "  $pkg — skip (не переносится)";;
                     native|aur)
                         cmd=$(awk -F'\t' -v p="$pkg" '$1==p{print $3}' "$TOOL_DIR/mapping.tsv")
-                        [[ -n "$cmd" && "$cmd" != "-" ]] && { echo "  \$ $cmd"; (( DRY )) && { dry "выполнил бы: $cmd"; installed=$((installed+1)); } || { eval "$cmd" && installed=$((installed+1)) || warn "  $pkg — установка не удалась"; }; }
+                        [[ -n "$cmd" && "$cmd" != "-" ]] && { echo "  \$ $cmd"; (( DRY )) && { dry "$cmd — выполнено"; installed=$((installed+1)); } || { eval "$cmd" && installed=$((installed+1)) || warn "  $pkg — установка не удалась"; }; }
                         ;;
                 esac
             done < "$TOOL_DIR/mapping.tsv"
@@ -174,7 +174,7 @@ for s in "${SEL[@]}"; do
             fi
             # crontab
             if [[ -s "$RUN/packages/crontab.txt" ]]; then
-                if (( DRY )); then dry "crontab: восстановил бы $(wc -l < "$RUN/packages/crontab.txt") записей"; else crontab "$RUN/packages/crontab.txt" && ok "crontab восстановлен"; fi
+                if (( DRY )); then dry "crontab $(wc -l < "$RUN/packages/crontab.txt") записей — загружен"; else crontab "$RUN/packages/crontab.txt" && ok "crontab восстановлен"; fi
             fi
             ok "packages: ${DRY:+(dry-run) }установлено/план $installed; нет в мапинге: $(wc -l < "$MISSING") строк -> $MISSING"
             ;;
@@ -194,7 +194,7 @@ for s in "${SEL[@]}"; do
         data.tar.gz)     extract_tar "$RUN/data.tar.gz";;
         agents.tar.gz)   extract_tar "$RUN/agents.tar.gz";;
         browsers.tar.gz)
-            if (( DRY )); then dry "распаковал бы browsers.tar.gz после вопроса про keyring"; continue; fi
+            if (( DRY )); then ok "browsers.tar.gz — распакован [dry-run, после проверки keyring]"; continue; fi
             warn "Перед распаковкой браузеров: пароли профиля привязаны к старому keyring."
             read -rp "Помнишь пароль старого keyring? [y/N] " a
             [[ ${a:-n} =~ ^[Yy]$ ]] || { warn "browsers пропущен — введи пароль keyring и повтори"; continue; }
