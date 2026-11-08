@@ -366,7 +366,7 @@ for g in "${GRP_CHOSEN[@]}"; do
     if [[ ${GRP_HAS_SUB[$g]:-} ]]; then
         while IFS= read -r k; do
             if [[ ${SUB_STATE[$g|$k]:-} == ON ]]; then
-                IFS=';' read -r _ _ sz _ _ p <<<"${SUBS[$g|$k]}"
+                IFS=';' read -r _ sz _ _ p <<<"${SUBS[$g|$k]}"
                 SIZE_M[$k]="$sz"; PATH_OF[$k]="$p"
                 SEL+=("$k")
             fi
