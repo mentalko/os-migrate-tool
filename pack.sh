@@ -322,12 +322,21 @@ ui_tree() { # плоский список: группы + (развёрнуты�
             m=" "
             if [[ ${kinds[i]} == grp ]]; then [[ ${GRP_STATE[${rows[i]}]} == ON ]] && m="x"
             else [[ ${SUB_STATE[${rows[i]}]:-} == ON ]] && m="x"; fi
-            local prefix="  "
-            [[ ${kinds[i]} == sub ]] && prefix="    \e[2m└\e[0m "
-            if (( i == cur )); then
-                printf '\e[7m%s[%s] %-*s %-38s %9s \e[0m\n' "$prefix" "$m" "$tw" "${tags[i]}" "${descs[i]}" "${sizes[i]}" >&2
+            if [[ ${kinds[i]} == grp ]]; then
+                local prefix="  " color="" color_end=""
+                if (( i != cur )); then color=$'\033[36m'; color_end=$'\033[0m'; fi
+                if (( i == cur )); then
+                    printf '\033[7m%s[%s] %-*s %-38s %9s \033[0m\n' "$prefix" "$m" "$tw" "${tags[i]}" "${descs[i]}" "${sizes[i]}" >&2
+                else
+                    printf '%s%s[%s] %-*s %-38s %9s%s\n' "$color" "$prefix" "$m" "$tw" "${tags[i]}" "${descs[i]}" "${sizes[i]}" "$color_end" >&2
+                fi
             else
-                printf '%s[%s] %-*s %-38s %9s\n' "$prefix" "$m" "$tw" "${tags[i]}" "${descs[i]}" "${sizes[i]}" >&2
+                local prefix=$'    \033[2m\u2514\033[0m '
+                if (( i == cur )); then
+                    printf '\033[7m%s[%s] %-*s %-38s %9s \033[0m\n' "$prefix" "$m" "$tw" "${tags[i]}" "${descs[i]}" "${sizes[i]}" >&2
+                else
+                    printf '%s[%s] \033[2m%-*s %-38s %9s\033[0m\n' "$prefix" "$m" "$tw" "${tags[i]}" "${descs[i]}" "${sizes[i]}" >&2
+                fi
             fi
         done
         echo >&2
