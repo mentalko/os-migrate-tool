@@ -44,7 +44,7 @@ ui_checklist() {
     _draw() {
         printf '\e[H\e[J'
         echo "== $title"
-        echo -e "  \e[2m↑/↓ — выбор · пробел — галочка · a — все · n — ничего · Enter — ок\e[0m"
+        echo -e "  \e[2m↑/↓ или j/k — выбор · пробел — галочка · a — все · n — ничего · Enter — ок\e[0m"
         echo
         for i in "${!tags[@]}"; do
             m=" "; [[ ${offs[i]} == ON ]] && m="x"
@@ -69,7 +69,9 @@ ui_checklist() {
             ' '|' ') [[ ${offs[cur]} == ON ]] && offs[cur]=OFF || offs[cur]=ON;;
             'a'|'A'|'ф'|'Ф') for i in "${!tags[@]}"; do offs[i]=ON; done;;
             'n'|'N'|'т'|'Т') for i in "${!tags[@]}"; do offs[i]=OFF; done;;
-            '') break;;
+            'j'|'J'|'о'|'О') (( cur < ${#tags[@]}-1 )) && (( cur++ ));;
+            'k'|'K'|'л'|'Л') (( cur > 0 )) && (( cur-- ));;
+            ''|$'\n'|$'\r') break;;
             *) continue;;
         esac
         _draw
@@ -111,7 +113,9 @@ ui_menu() { # одиночный выбор: tag;desc[;hint]
                     '[A') (( cur > 0 )) && (( cur-- ));;
                     '[B') (( cur < ${#tags[@]}-1 )) && (( cur++ ));;
                 esac;;
-            '') break;;
+            'j'|'J'|'о'|'О') (( cur < ${#tags[@]}-1 )) && (( cur++ ));;
+            'k'|'K'|'л'|'Л') (( cur > 0 )) && (( cur-- ));;
+            ''|$'\n'|$'\r') break;;
             *) continue;;
         esac
         _drawm
