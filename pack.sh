@@ -58,7 +58,10 @@ ui_checklist() {
             fi
         done
         echo >&2
-        printf '\e[2m  ↪ [%s] %s\e[0m\n' "${tags[cur]}" "${hints[cur]}" >&2
+        printf '\e[2m  ↪ [%s]\e[0m\n' "${tags[cur]}" >&2
+        local hl   # hint: '|' = перевод строки — каждый путь своей строкой
+        while IFS= read -r hl; do [[ -n "$hl" ]] && printf '\e[2m        %s\e[0m\n' "$hl" >&2; done \
+            < <(printf '%s' "${hints[cur]}" | tr '|' '\n')
     }
     _draw
     while true; do
@@ -106,7 +109,10 @@ ui_menu() { # одиночный выбор: tag;desc[;hint]
             fi
         done
         echo >&2
-        printf '\e[2m  ↪ [%s] %s\e[0m\n' "${tags[cur]}" "${hints[cur]}" >&2
+        printf '\e[2m  ↪ [%s]\e[0m\n' "${tags[cur]}" >&2
+        local hl
+        while IFS= read -r hl; do [[ -n "$hl" ]] && printf '\e[2m        %s\e[0m\n' "$hl" >&2; done \
+            < <(printf '%s' "${hints[cur]}" | tr '|' '\n')
     }
     _drawm
     while true; do
@@ -165,22 +171,29 @@ APPS_FIND=$(find "$HOME/Applications" "$HOME/bin" "$HOME/Desktop" -maxdepth 1 -n
 appimg_size=0; [[ -n "$APPS_FIND" ]] && appimg_size=$(echo "$APPS_FIND" | xargs -r du -sm --apparent-size 2>/dev/null | awk '{s+=$1} END{print s+0}')
 
 ITEMS=(
-  "packages;манифесты apt/flatpak/vscode/dconf/cron;10-20M;ON;dpkg --get-selections, flatpak list, code --list-extensions, dconf dump, crontab -l, systemd-user units"
-  "appimages;AppImage: $(echo "$APPS_FIND" | grep -c . || true) шт.;${appimg_size}M;$([[ $appimg_size -gt 0 ]] && echo ON || echo OFF);$(echo "$APPS_FIND" | sed "s|$HOME|~|g" | tr '\n' ' ')"
-  "dotfiles;конфиги, ssh, шрифты, история;$(size_of "${DOT_DIRS[@]}" "${DOT_FILES[@]}")M;ON;~/${DOT_DIRS[*]} ~/${DOT_FILES[*]}"
-  "data;~/Documents;$(size_of Documents)M;ON;~/Documents целиком, исключая os-migrate-tool и [10] SKILLS"
-  "agents;AI-агенты + скиллы;$(size_of .qoder .codex .claude .agents .jcode)M;ON;~/.qoder ~/.codex ~/.claude ~/.agents ~/.jcode ~/Documents/[10] SKILLS — сессии, задачи, скиллы"
-  "browsers;профили браузеров целиком;$(size_of "${BROWSER_DIRS[@]}")M;OFF;~/${BROWSER_DIRS[*]} — пароли, куки, расширения; на Cachy нужен пароль старого keyring"
+  "packages;манифесты apt/flatpak/vscode/dconf/cron;10-20M;ON;команды:|dpkg --get-selections|flatpak list|code --list-extensions|dconf dump /|crontab -l|systemctl --user list-unit-files"
+  "appimages;AppImage: $(echo "$APPS_FIND" | grep -c . || true) шт.;${appimg_size}M;$([[ $appimg_size -gt 0 ]] && echo ON || echo OFF);$(echo "$APPS_FIND" | sed "s|$HOME|~|g" | tr '\n' '|' | sed 's/|$//')"
+  "dotfiles;конфиги, ssh, шрифты, история;$(size_of "${DOT_DIRS[@]}" "${DOT_FILES[@]}")M;ON;$(printf '~/%s|' "${DOT_DIRS[@]}" "${DOT_FILES[@]}" | sed 's/|$//')"
+  "data;~/Documents;$(size_of Documents)M;ON;~/Documents целиком|исключая: os-migrate-tool, [10] SKILLS"
+  "agents;AI-агенты + скиллы;$(size_of .qoder .codex .claude .agents .jcode)M;ON;~/.qoder — сессии, задачи|~/.codex — сессии, задачи|~/.claude — сессии|~/.agents — скиллы|~/.jcode — сессии, задачи|~/Documents/[10] SKILLS — скиллы"
+  "browsers;профили браузеров целиком;$(size_of "${BROWSER_DIRS[@]}")M;OFF;$(printf '~/%s|' "${BROWSER_DIRS[@]}" | sed 's/|$//')|пароли, куки, расширения — целиком|на Cachy понадобится пароль старого keyring"
 )
 
 # Полные пути — в терминал, чтобы не распирало диалог
 echo; info "Что входит в каждый компонент:"
-echo "  packages   : манифесты (apt, flatpak, vscode, dconf, cron, systemd-user)"
-[[ -n "$APPS_FIND" ]] && echo "  appimages  : $(echo "$APPS_FIND" | sed "s|$HOME|~|g" | tr '\n' ' ')"
-echo "  dotfiles   : ${DOT_DIRS[*]} ${DOT_FILES[*]}" | sed "s| |, |g; s/^/               /"
-echo "  data       : ~/Documents (без os-migrate-tool, [10] SKILLS)"
-echo "  agents     : ~/.qoder, ~/.codex, ~/.claude, ~/.agents, ~/.jcode, ~/Documents/[10] SKILLS"
-echo "  browsers   : ${BROWSER_DIRS[*]}" | sed "s| |, |g; s/^/               /"
+echo "  packages  : манифесты (apt, flatpak, vscode, dconf, cron, systemd-user)"
+if [[ -n "$APPS_FIND" ]]; then
+    echo "  appimages :"
+    echo "$APPS_FIND" | sed "s|$HOME|~|g; s/^/      /"
+fi
+echo "  dotfiles  :"
+printf '      ~/%s\n' "${DOT_DIRS[@]}" "${DOT_FILES[@]}"
+echo "  data      : ~/Documents (без os-migrate-tool, [10] SKILLS)"
+echo "  agents    :"
+for p in .qoder .codex .claude .agents .jcode; do echo "      ~/$p"; done
+echo "      ~/Documents/[10] SKILLS"
+echo "  browsers  :"
+printf '      ~/%s\n' "${BROWSER_DIRS[@]}"
 
 SEL=$(ui_checklist "Что пакуем?" "${ITEMS[@]}")
 [[ -n "$SEL" ]] || die "ничего не выбрано"
