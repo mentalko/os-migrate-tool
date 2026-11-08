@@ -191,7 +191,7 @@ for s in "${SEL[@]}"; do
     case "$s" in
         packages)  echo "   packages   — манифесты"; total=$((total+20));;
         appimages) echo "   appimages  — $(echo "$APPS_FIND" | wc -l) шт., ${appimg_size}M"; total=$((total+appimg_size));;
-        dotfiles)  echo "   dotfiles   — ${size_of "${DOT_DIRS[@]}" "${DOT_FILES[@]}"}M"; total=$((total+$(size_of "${DOT_DIRS[@]}" "${DOT_FILES[@]}")));;
+        dotfiles)  sz=$(size_of "${DOT_DIRS[@]}" "${DOT_FILES[@]}"); echo "   dotfiles   — ${sz}M"; total=$((total+sz));;
         data)      echo "   data       — Documents, $(size_of Documents)M"; total=$((total+$(size_of Documents)));;
         agents)    echo "   agents     — $(size_of .qoder .codex .claude .agents .jcode)M"; total=$((total+$(size_of .qoder .codex .claude .agents .jcode)));;
         browsers)  echo "   browsers   — $(size_of "${BROWSER_DIRS[@]}")M"; total=$((total+$(size_of "${BROWSER_DIRS[@]}")));;
