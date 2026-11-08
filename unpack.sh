@@ -84,9 +84,13 @@ COMPONENTS=(
   "packages;манифесты + установка по mapping.tsv"
   "appimages;копирование в ~/Applications"
   "dotfiles.tar.gz;конфиги, ssh, шрифты"
-  "data.tar.gz;~/Documents"
-  "agents.tar.gz;.qoder/.codex/.claude/.agents/.jcode + скиллы"
+  "data.tar.gz;~/Documents, Downloads"
+  "agents.tar.gz;AI-агенты: home + .config + скиллы"
   "browsers.tar.gz;профили браузеров целиком"
+  "flatpak-data.tar.gz;данные flatpak-приложений (.var)"
+  "toolchain.tar.gz;тулчейны rustup/nvm/bun/npm/vscode"
+  "tmp.tar.gz;tmp-каталоги"
+  "extra.tar.gz;дополнительные пути"
 )
 if [[ $# -gt 0 && "$1" != all ]]; then SEL=("$@")
 else
@@ -193,6 +197,10 @@ for s in "${SEL[@]}"; do
         dotfiles.tar.gz) extract_tar "$RUN/dotfiles.tar.gz";;
         data.tar.gz)     extract_tar "$RUN/data.tar.gz";;
         agents.tar.gz)   extract_tar "$RUN/agents.tar.gz";;
+        flatpak-data.tar.gz) extract_tar "$RUN/flatpak-data.tar.gz";;
+        toolchain.tar.gz) extract_tar "$RUN/toolchain.tar.gz";;
+        tmp.tar.gz)      extract_tar "$RUN/tmp.tar.gz";;
+        extra.tar.gz)    extract_tar "$RUN/extra.tar.gz";;
         browsers.tar.gz)
             if (( DRY )); then ok "browsers.tar.gz — распакован [dry-run, после проверки keyring]"; continue; fi
             warn "Перед распаковкой браузеров: пароли профиля привязаны к старому keyring."
@@ -205,6 +213,11 @@ done
 # ---------- 5. Отчёт ----------
 echo; ok "===== ИТОГ $([[ $DRY == 1 ]] && echo '(DRY-RUN — ничего не выполнено)' || echo '') ====="
 for s in "${SEL[@]}"; do echo "  • $s"; done
+if [[ -s "$RUN/paths.tsv" ]]; then
+    ok "Мапинг источник->приёмник: $RUN/paths.tsv ($(($(wc -l < "$RUN/paths.tsv")-1)) путей)"
+    info "Пути восстановления (из paths.tsv):"
+    tail -n +2 "$RUN/paths.tsv" | awk -F'\t' '{printf "    %s -> %s\n", $4, $6}' | sort -u | head -40
+fi
 [[ -s "$MISSING" ]] && warn "Нет в mapping.tsv ($(wc -l < "$MISSING")):  $MISSING — установи вручную (pacman -Si / yay -Ss / AppImage)"
 (( DRY )) && ok "Реальное восстановление: bash unpack.sh (без --dry-run)"
 ok "Готово."

@@ -180,9 +180,13 @@ read -ra BROWSER_ARR<<<"$BROWSER_DIRS"
 read -ra DATA_ARR   <<<"$DATA_DIRS"
 read -ra TMP_ARR    <<<"$TMP_DIRS"
 read -ra EXTRA_ARR  <<<"$EXTRA_DIRS"
+read -ra TOOLCHAIN_ARR <<<"${TOOLCHAIN_DIRS:-}"
+read -ra FLATPAK_ARR   <<<"${FLATPAK_DATA_DIRS:-}"
 [[ -n "$APPIMG_DIRS" ]] && APPS_FIND=$(eval find $APPIMG_DIRS -maxdepth 1 -name '*.AppImage' 2>/dev/null || true)
 
 MG_GROUPS=(packages appimages dotfiles data agents browsers)
+[[ ${#FLATPAK_ARR[@]} -gt 0 && -n "${FLATPAK_ARR[0]:-}" ]] && MG_GROUPS+=(flatpak)
+[[ ${#TOOLCHAIN_ARR[@]} -gt 0 && -n "${TOOLCHAIN_ARR[0]:-}" ]] && MG_GROUPS+=(toolchain)
 [[ ${#TMP_ARR[@]} -gt 0 && -n "${TMP_ARR[0]:-}" ]] && MG_GROUPS+=(tmp)
 [[ ${#EXTRA_ARR[@]} -gt 0 && -n "${EXTRA_ARR[0]:-}" ]] && MG_GROUPS+=(extra)
 
@@ -233,6 +237,18 @@ if [[ ${#EXTRA_ARR[@]} -gt 0 && -n "${EXTRA_ARR[0]:-}" ]]; then
         [[ -e "$HOME/$p" ]] && add_sub extra "extra:$p" "extra: $p" "$(m_of "$HOME/$p")" OFF "~/$p" "$p"
     done
 fi
+if [[ ${#FLATPAK_ARR[@]} -gt 0 && -n "${FLATPAK_ARR[0]:-}" ]]; then
+    GRP_HAS_SUB[flatpak]=1
+    for p in "${FLATPAK_ARR[@]}"; do
+        [[ -e "$HOME/$p" ]] && add_sub flatpak "flatpak:$p" "flatpak-данные: $p" "$(m_of "$HOME/$p")" ON "~/$p — профили flatpak-приложений" "$p"
+    done
+fi
+if [[ ${#TOOLCHAIN_ARR[@]} -gt 0 && -n "${TOOLCHAIN_ARR[0]:-}" ]]; then
+    GRP_HAS_SUB[toolchain]=1
+    for p in "${TOOLCHAIN_ARR[@]}"; do
+        [[ -e "$HOME/$p" ]] && add_sub toolchain "toolchain:$p" "тулчейн: $p" "$(m_of "$HOME/$p")" OFF "~/$p — тяжёлое, обычно переустанавливают" "$p"
+    done
+fi
 
 # группы без подпунктов
 declare -A GRP_SIZE PATH_OF
@@ -242,13 +258,15 @@ GRP_DESC[dotfiles]="конфиги, ssh, шрифты, история (без а
 GRP_DESC[agents]="AI-агенты: сессии, задачи, скиллы + их данные в .config"; GRP_SIZE[agents]=0
 GRP_DESC[browsers]="профили браузеров (пароли, куки, расширения)"; GRP_SIZE[browsers]=0
 GRP_DESC[data]="данные: ~/Documents и т.п."; GRP_SIZE[data]=0
+GRP_DESC[flatpak]="данные flatpak-приложений (.var)"; GRP_SIZE[flatpak]=0
+GRP_DESC[toolchain]="тулчейны: rustup/nvm/bun/npm/vscode"; GRP_SIZE[toolchain]=0
 GRP_DESC[tmp]="пересоздаваемые данные (/tmp и т.п.)"; GRP_SIZE[tmp]=0
 GRP_DESC[extra]="дополнительные пути из migrate.conf"; GRP_SIZE[extra]=0
 
-# состояние группы: ON/OFF; подпункты берут свои дефолты (browsers/tmp/extra — OFF)
+# состояние группы: ON/OFF; подпункты берут свои дефолты (browsers/toolchain/tmp/extra — OFF)
 declare -A GRP_STATE SUB_STATE
 for g in "${MG_GROUPS[@]}"; do GRP_STATE[$g]=ON; done
-for g in browsers tmp extra; do GRP_STATE[$g]=OFF; done
+for g in browsers toolchain tmp extra; do GRP_STATE[$g]=OFF; done
 for k in "${!SUBS[@]}"; do
     IFS=';' read -r _ _ o _ _ <<<"${SUBS[$k]}"
     SUB_STATE[$k]="$o"
@@ -414,7 +432,7 @@ info "Прогон: $RUN_DIR"
 EXCL_DEDUP="$RUN_DIR/.exclude-dedup"
 if (( ! DRY )); then
     : > "$EXCL_DEDUP"
-    for p in ${AGENT_DIRS} ${AGENT_CONFIG_DIRS} ${BROWSER_DIRS}; do echo "$p/" >> "$EXCL_DEDUP"; done
+    for p in ${AGENT_DIRS} ${AGENT_CONFIG_DIRS} ${BROWSER_DIRS} ${FLATPAK_DATA_DIRS:-} ${TOOLCHAIN_DIRS:-}; do echo "$p/" >> "$EXCL_DEDUP"; done
     echo "Documents/os-migrate-tool/" >> "$EXCL_DEDUP"
 fi
 for p in ${AGENT_DIRS} ${AGENT_CONFIG_DIRS} ${BROWSER_DIRS}; do echo "$p/" >> "$EXCL_DEDUP"; done
@@ -468,6 +486,34 @@ fi
 [[ -n "${GRP_SEL[data]:-}" ]]    && targz data.tar.gz "$EXCL_DEDUP" "${GRP_SEL[data]}"
 [[ -n "${GRP_SEL[agent]:-}" ]]   && targz agents.tar.gz exclude.txt ${GRP_SEL[agent]}
 [[ -n "${GRP_SEL[browser]:-}" ]] && targz browsers.tar.gz exclude.txt ${GRP_SEL[browser]}
+[[ -n "${GRP_SEL[flatpak]:-}" ]] && targz flatpak-data.tar.gz exclude.txt ${GRP_SEL[flatpak]}
+[[ -n "${GRP_SEL[toolchain]:-}" ]] && targz toolchain.tar.gz exclude.txt ${GRP_SEL[toolchain]}
+[[ -n "${GRP_SEL[tmp]:-}" ]]     && targz tmp.tar.gz exclude.txt ${GRP_SEL[tmp]}
+[[ -n "${GRP_SEL[extra]:-}" ]]   && targz extra.tar.gz exclude.txt ${GRP_SEL[extra]}
+
+# ---------- 5b. paths.tsv: происхождение каждого файла ----------
+# формат: group<TAB>tag<TAB>size<TAB>source(в Ubuntu)<TAB>archive<TAB>dest(на Cachy)
+if (( ! DRY )); then
+    PATHS_TSV="$RUN_DIR/paths.tsv"
+    echo -e "group\ttag\tsize\tsource\tarchive\tdest" > "$PATHS_TSV"
+    for grp in "${!GRP_SEL[@]}"; do
+        case "$grp" in
+            packages) echo -e "packages\tpackages\t${SIZE_M[packages]:-15}\t(manifests: dpkg/flatpak/code/dconf/cron/systemd)\tpackages/\t\$HOME" >> "$PATHS_TSV";;
+            appimg)   for f in ${GRP_SEL[appimg]}; do
+                          echo -e "appimages\tappimg\t$(m_of "$f")M\t$f\tappimages/$(basename "$f")\t\$HOME/Applications/$(basename "$f")" >> "$PATHS_TSV"
+                      done;;
+            dot)      for f in ${GRP_SEL[dot]}; do   echo -e "dotfiles\tdot\t-\t\$HOME/$f\tdotfiles.tar.gz\t\$HOME/$f" >> "$PATHS_TSV"; done;;
+            data)     for f in ${GRP_SEL[data]}; do  echo -e "data\tdata\t-\t\$HOME/$f\tdata.tar.gz\t\$HOME/$f" >> "$PATHS_TSV"; done;;
+            agent)    for f in ${GRP_SEL[agent]}; do echo -e "agents\tagent\t-\t\$HOME/$f\tagents.tar.gz\t\$HOME/$f" >> "$PATHS_TSV"; done;;
+            browser)  for f in ${GRP_SEL[browser]}; do echo -e "browsers\tbrowser\t-\t\$HOME/$f\tbrowsers.tar.gz\t\$HOME/$f" >> "$PATHS_TSV"; done;;
+            flatpak)  for f in ${GRP_SEL[flatpak]}; do echo -e "flatpak\tflatpak\t-\t\$HOME/$f\tflatpak-data.tar.gz\t\$HOME/$f" >> "$PATHS_TSV"; done;;
+            toolchain) for f in ${GRP_SEL[toolchain]}; do echo -e "toolchain\ttoolchain\t-\t\$HOME/$f\ttoolchain.tar.gz\t\$HOME/$f" >> "$PATHS_TSV"; done;;
+            tmp)      for f in ${GRP_SEL[tmp]}; do   echo -e "tmp\ttmp\t-\t\$HOME/$f\ttmp.tar.gz\t\$HOME/$f" >> "$PATHS_TSV"; done;;
+            extra)    for f in ${GRP_SEL[extra]}; do echo -e "extra\textra\t-\t\$HOME/$f\textra.tar.gz\t\$HOME/$f" >> "$PATHS_TSV"; done;;
+        esac
+    done
+    ok "paths.tsv записан ($(wc -l < "$PATHS_TSV") строк) — что, откуда и куда"
+fi
 
 # ---------- 6. Самообновление инструмента на SSD ----------
 info "Синхронизация инструмента на SSD..."
