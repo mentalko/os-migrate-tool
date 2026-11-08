@@ -14,7 +14,16 @@ warn() { echo -e "\e[33m!\e[0m $*"; }
 human(){ du -sh --apparent-size "$1" 2>/dev/null | cut -f1; }
 
 if command -v whiptail >/dev/null 2>&1; then
-    ui_menu() { local t="$1"; shift; whiptail --menu "$t" 22 78 14 "$@" 3>&1 1>&2 2>&3 || true; }
+    ui_menu() {
+        local t="$1"; shift; local -a args=()
+        for it in "$@"; do args+=("${it%%;*}" "${it#*;}"); done
+        whiptail --menu "$t" 22 78 14 "${args[@]}" 3>&1 1>&2 2>&3 || true
+    }
+    ui_checklist() { # $1=title, $2..: tag;desc;onoff
+        local t="$1"; shift; local -a args=()
+        for it in "$@"; do IFS=';' read -r a b c <<<"$it"; args+=("$a" "$b" "$c"); done
+        whiptail --separate-output --checklist "$t" 24 78 12 "${args[@]}" 3>&1 1>&2 2>&3 || true
+    }
     ui_msg()  { whiptail --msgbox "$1" 20 78 || true; }
 else
     ui_menu() { local t="$1"; shift; echo; echo "== $t"
@@ -65,7 +74,7 @@ else
     done
     ((${#CHECKS[@]})) || die "в прогоне нет ни одного компонента"
     if command -v whiptail >/dev/null 2>&1; then
-        SEL=$(whiptail --separate-output --checklist "Что восстанавливаем?" 24 78 12 "${CHECKS[@]}" 3>&1 1>&2 2>&3 || true)
+        SEL=$(ui_checklist "Что восстанавливаем?" "${CHECKS[@]}")
     else
         echo; echo "== Что восстанавливаем?"; for i in "${!CHECKS[@]}"; do
             IFS=';' read -r t d s <<<"${CHECKS[i]}"; echo "  $((i+1))) $t — $d ($s)"; done

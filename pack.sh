@@ -27,11 +27,15 @@ info "ОС: ${PRETTY_NAME:-$OS_ID}"
 if command -v whiptail >/dev/null 2>&1; then
     ui_checklist() { # $1=title, $2..: tag;desc;size;onoff
         local title="$1"; shift
-        whiptail --separate-output --checklist "$title" 24 78 12 "$@" 3>&1 1>&2 2>&3 || true
+        local -a args=()
+        for it in "$@"; do IFS=';' read -r t d s o <<<"$it"; args+=("$t" "$d [$s]" "$o"); done
+        whiptail --separate-output --checklist "$title" 24 78 12 "${args[@]}" 3>&1 1>&2 2>&3 || true
     }
     ui_menu() { # $1=title, $2..: tag;desc
         local title="$1"; shift
-        whiptail --menu "$title" 22 78 14 "$@" 3>&1 1>&2 2>&3 || true
+        local -a args=()
+        for it in "$@"; do args+=("${it%%;*}" "${it#*;}"); done
+        whiptail --menu "$title" 22 78 14 "${args[@]}" 3>&1 1>&2 2>&3 || true
     }
 else
     ui_checklist() { # fallback: tag;desc;size;onoff
