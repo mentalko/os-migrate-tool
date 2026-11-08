@@ -70,14 +70,14 @@ ui_checklist() {
         case "$key" in
             $'\x1b') read -rsn2 seq
                 case "$seq" in
-                    '[A') (( cur > 0 )) && (( cur-- ));;
-                    '[B') (( cur < ${#tags[@]}-1 )) && (( cur++ ));;
+                    '[A') (( cur > 0 )) && (( --cur ));;
+                    '[B') (( cur < ${#tags[@]}-1 )) && (( ++cur ));;
                 esac;;
             ' '|' ') [[ ${offs[cur]} == ON ]] && offs[cur]=OFF || offs[cur]=ON;;
             'a'|'A'|'ф'|'Ф') for i in "${!tags[@]}"; do offs[i]=ON; done;;
             'n'|'N'|'т'|'Т') for i in "${!tags[@]}"; do offs[i]=OFF; done;;
-            'j'|'J'|'о'|'О') (( cur < ${#tags[@]}-1 )) && (( cur++ ));;
-            'k'|'K'|'л'|'Л') (( cur > 0 )) && (( cur-- ));;
+            'j'|'J'|'о'|'О') (( cur < ${#tags[@]}-1 )) && (( ++cur ));;
+            'k'|'K'|'л'|'Л') (( cur > 0 )) && (( --cur ));;
             ''|$'\n'|$'\r') break;;
             *) continue;;
         esac
@@ -121,11 +121,11 @@ ui_menu() { # одиночный выбор: tag;desc[;hint]
         case "$key" in
             $'\x1b') read -rsn2 seq
                 case "$seq" in
-                    '[A') (( cur > 0 )) && (( cur-- ));;
-                    '[B') (( cur < ${#tags[@]}-1 )) && (( cur++ ));;
+                    '[A') (( cur > 0 )) && (( --cur ));;
+                    '[B') (( cur < ${#tags[@]}-1 )) && (( ++cur ));;
                 esac;;
-            'j'|'J'|'о'|'О') (( cur < ${#tags[@]}-1 )) && (( cur++ ));;
-            'k'|'K'|'л'|'Л') (( cur > 0 )) && (( cur-- ));;
+            'j'|'J'|'о'|'О') (( cur < ${#tags[@]}-1 )) && (( ++cur ));;
+            'k'|'K'|'л'|'Л') (( cur > 0 )) && (( --cur ));;
             ''|$'\n'|$'\r') break;;
             *) continue;;
         esac
@@ -342,13 +342,13 @@ ui_tree() { # плоский список: группы + (развёрнуты�
         case "$key" in
             $'\x1b') read -rsn2 seq
                 case "$seq" in
-                    '[A') (( cur > 0 )) && (( cur-- ));;
-                    '[B') (( cur < ${#rows[@]}-1 )) && (( cur++ ));;
+                    '[A') (( cur > 0 )) && (( --cur ));;
+                    '[B') (( cur < ${#rows[@]}-1 )) && (( ++cur ));;
                     '[C') [[ ${kinds[cur]} == grp && ${GRP_HAS_SUB[${rows[cur]}]:-} ]] && { if [[ ${GRP_EXPANDED[${rows[cur]}]:-} ]]; then unset 'GRP_EXPANDED[${rows[cur]}]'; else GRP_EXPANDED[${rows[cur]}]=1; fi; };;
                     '[D') [[ ${kinds[cur]} == grp ]] && unset "GRP_EXPANDED[${rows[cur]}]";;
                 esac;;
-            'j'|'J') (( cur < ${#rows[@]}-1 )) && (( cur++ ));;
-            'k'|'K') (( cur > 0 )) && (( cur-- ));;
+            'j'|'J') (( cur < ${#rows[@]}-1 )) && (( ++cur ));;
+            'k'|'K') (( cur > 0 )) && (( --cur ));;
             ' '|',') toggle;;
             '>'|'l'|'L'|'д'|'Д') [[ ${kinds[cur]} == grp && ${GRP_HAS_SUB[${rows[cur]}]:-} ]] && GRP_EXPANDED[${rows[cur]}]=1;;
             '<'|'h'|'H'|'b'|'B') [[ ${kinds[cur]} == grp ]] && unset "GRP_EXPANDED[${rows[cur]}]";;
