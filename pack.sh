@@ -43,6 +43,7 @@ ui_checklist() {
         tags+=("$t"); descs+=("$d"); sizes+=("$s"); offs+=("$o"); hints+=("${h:-$d}")
     done
     local cur=0
+    local tw=0; for i in "${!tags[@]}"; do (( ${#tags[i]} > tw )) && tw=${#tags[i]}; done
     printf '\e[?25l' >&2                  # спрятать курсор
     _draw() {                             # рисуем в stderr: stdout захватывается $()
         printf '\e[H\e[J' >&2
@@ -52,9 +53,9 @@ ui_checklist() {
         for i in "${!tags[@]}"; do
             m=" "; [[ ${offs[i]} == ON ]] && m="x"
             if (( i == cur )); then
-                printf '\e[7m  [%s] %-11s %-33s %9s \e[0m\n' "$m" "${tags[i]}" "${descs[i]}" "${sizes[i]}" >&2
+                printf '\e[7m  [%s] %-*s %-33s %9s \e[0m\n' "$m" "$tw" "${tags[i]}" "${descs[i]}" "${sizes[i]}" >&2
             else
-                printf '  [%s] %-11s %-33s %9s\n' "$m" "${tags[i]}" "${descs[i]}" "${sizes[i]}" >&2
+                printf '  [%s] %-*s %-33s %9s\n' "$m" "$tw" "${tags[i]}" "${descs[i]}" "${sizes[i]}" >&2
             fi
         done
         echo >&2
@@ -160,63 +161,69 @@ touch "$SSD/.omt-write-test" 2>/dev/null && rm -f "$SSD/.omt-write-test" \
     || die "диск $SSD не доступен на запись (ro-маунт?)"
 ok "SSD: $SSD (свободно $(df -h --output=avail "$SSD" | tail -1))"
 
-# ---------- 3. Компоненты: путь + размер ----------
+# ---------- 3. Компоненты: гранулярный выбор ----------
+hM() { awk -v m="$1" 'BEGIN{ if (m>=1024) printf "%.1fG", m/1024; else printf "%dM", m }'; }
+size_of() { local s=0 p; for p in "$@"; do [[ -e "$HOME/$p" || -e "$p" ]] && s=$(( s + $(du -sm --apparent-size "$HOME/$p" 2>/dev/null | cut -f1) )); done; echo "$s"; }
+m_of() { du -sm --apparent-size "$1" 2>/dev/null | cut -f1; }
+
 DOT_DIRS=(.config .ssh .gnupg .local/share/fonts .local/bin .local/share/applications)
 DOT_FILES=(.zshrc .bashrc .profile .gitconfig .gitignore_global .bash_history .zsh_history)
+AGENT_DIRS=(.qoder .codex .claude .agents .jcode "Documents/[10] SKILLS")
 BROWSER_DIRS=(.config/google-chrome .config/BraveSoftware .config/chromium .mozilla)
 
-size_of() { local s=0 p; for p in "$@"; do [[ -e "$HOME/$p" || -e "$p" ]] && s=$(( s + $(du -sm --apparent-size "$HOME/$p" 2>/dev/null | cut -f1) )); done; echo "$s"; }
-
 APPS_FIND=$(find "$HOME/Applications" "$HOME/bin" "$HOME/Desktop" -maxdepth 1 -name '*.AppImage' 2>/dev/null || true)
-appimg_size=0; [[ -n "$APPS_FIND" ]] && appimg_size=$(echo "$APPS_FIND" | xargs -r du -sm --apparent-size 2>/dev/null | awk '{s+=$1} END{print s+0}')
 
-ITEMS=(
-  "packages;манифесты apt/flatpak/vscode/dconf/cron;10-20M;ON;команды:|dpkg --get-selections|flatpak list|code --list-extensions|dconf dump /|crontab -l|systemctl --user list-unit-files"
-  "appimages;AppImage: $(echo "$APPS_FIND" | grep -c . || true) шт.;${appimg_size}M;$([[ $appimg_size -gt 0 ]] && echo ON || echo OFF);$(echo "$APPS_FIND" | sed "s|$HOME|~|g" | tr '\n' '|' | sed 's/|$//')"
-  "dotfiles;конфиги, ssh, шрифты, история;$(size_of "${DOT_DIRS[@]}" "${DOT_FILES[@]}")M;ON;$(printf '~/%s|' "${DOT_DIRS[@]}" "${DOT_FILES[@]}" | sed 's/|$//')"
-  "data;~/Documents;$(size_of Documents)M;ON;~/Documents целиком|исключая: os-migrate-tool, [10] SKILLS"
-  "agents;AI-агенты + скиллы;$(size_of .qoder .codex .claude .agents .jcode)M;ON;~/.qoder — сессии, задачи|~/.codex — сессии, задачи|~/.claude — сессии|~/.agents — скиллы|~/.jcode — сессии, задачи|~/Documents/[10] SKILLS — скиллы"
-  "browsers;профили браузеров целиком;$(size_of "${BROWSER_DIRS[@]}")M;OFF;$(printf '~/%s|' "${BROWSER_DIRS[@]}" | sed 's/|$//')|пароли, куки, расширения — целиком|на Cachy понадобится пароль старого keyring"
-)
+ITEMS=(); declare -A SIZE_M PATH_OF
+add_item() { # tag desc sizeMB onoff hint
+    ITEMS+=("$1;$2;$(hM "$3");$4;$5"); SIZE_M[$1]="$3"; PATH_OF[$1]="$6"
+}
 
-# Полные пути — в терминал, чтобы не распирало диалог
-echo; info "Что входит в каждый компонент:"
-echo "  packages  : манифесты (apt, flatpak, vscode, dconf, cron, systemd-user)"
+add_item "packages" "манифесты apt/flatpak/vscode/dconf/cron" 15 ON \
+    "команды:|dpkg --get-selections|flatpak list|code --list-extensions|dconf dump /|crontab -l|systemctl --user list-unit-files" ""
 if [[ -n "$APPS_FIND" ]]; then
-    echo "  appimages :"
-    echo "$APPS_FIND" | sed "s|$HOME|~|g; s/^/      /"
+    while IFS= read -r f; do
+        b=$(basename "$f")
+        add_item "appimg:$b" "AppImage: $b" "$(m_of "$f")" ON "~/$f" "$f"
+    done <<<"$APPS_FIND"
 fi
-echo "  dotfiles  :"
-printf '      ~/%s\n' "${DOT_DIRS[@]}" "${DOT_FILES[@]}"
-echo "  data      : ~/Documents (без os-migrate-tool, [10] SKILLS)"
-echo "  agents    :"
-for p in .qoder .codex .claude .agents .jcode; do echo "      ~/$p"; done
-echo "      ~/Documents/[10] SKILLS"
-echo "  browsers  :"
-printf '      ~/%s\n' "${BROWSER_DIRS[@]}"
+for p in "${DOT_DIRS[@]}" "${DOT_FILES[@]}"; do
+    [[ -e "$HOME/$p" ]] && add_item "dot:$p" "$p" "$(m_of "$HOME/$p")" ON "~/$p" "~/$p"
+done
+add_item "data" "~/Documents целиком" "$(m_of "$HOME/Documents")" ON \
+    "~/Documents целиком|исключая: os-migrate-tool, [10] SKILLS" "Documents"
+for p in "${AGENT_DIRS[@]}"; do
+    [[ -e "$HOME/$p" ]] && add_item "agent:$p" "агент: $p" "$(m_of "$HOME/$p")" ON "~/$p" "~/$p"
+done
+for p in "${BROWSER_DIRS[@]}"; do
+    [[ -e "$HOME/$p" ]] && add_item "browser:$p" "браузер: $p" "$(m_of "$HOME/$p")" OFF \
+        "~/$p|пароли, куки, расширения — целиком|на Cachy понадобится пароль старого keyring" "$p"
+done
 
-SEL=$(ui_checklist "Что пакуем?" "${ITEMS[@]}")
+SEL=$(ui_checklist "Что пакуем? (каждый путь отдельно)" "${ITEMS[@]}")
 [[ -n "$SEL" ]] || die "ничего не выбрано"
 mapfile -t SEL <<<"$SEL"
 
 # ---------- 4. Итоговая оценка ----------
 total=0
+declare -A GRP_SEL   # group -> пути через пробел
 echo; info "Выбрано:"
 for s in "${SEL[@]}"; do
-    case "$s" in
-        packages)  echo "   packages   — манифесты"; total=$((total+20));;
-        appimages) echo "   appimages  — $(echo "$APPS_FIND" | wc -l) шт., ${appimg_size}M"; total=$((total+appimg_size));;
-        dotfiles)  sz=$(size_of "${DOT_DIRS[@]}" "${DOT_FILES[@]}"); echo "   dotfiles   — ${sz}M"; total=$((total+sz));;
-        data)      echo "   data       — Documents, $(size_of Documents)M"; total=$((total+$(size_of Documents)));;
-        agents)    echo "   agents     — $(size_of .qoder .codex .claude .agents .jcode)M"; total=$((total+$(size_of .qoder .codex .claude .agents .jcode)));;
-        browsers)  echo "   browsers   — $(size_of "${BROWSER_DIRS[@]}")M"; total=$((total+$(size_of "${BROWSER_DIRS[@]}")));;
-    esac
+    sz=${SIZE_M[$s]:-0}; total=$(( total + sz ))
+    if [[ "$s" == *:* ]]; then
+        grp="${s%%:*}"
+        GRP_SEL[$grp]+="${PATH_OF[$s]} "
+        echo "   + ${PATH_OF[$s]}  [$(hM "$sz")]"
+    else
+        echo "   + $s  [$(hM "$sz")]"
+        GRP_SEL[$s]="${PATH_OF[$s]}"
+    fi
 done
 est=$(( total * 55 / 100 ))   # tar.gz ~55% от исходника
+free_h=$(df -h --output=avail "$SSD" | tail -1 | tr -d ' ')
 echo "--------------------------------------------------"
-warn "Сырой объём: ${total}M   оценка после tar.gz: ~${est}M"
+warn "Сырой объём: $(hM "$total")   оценка после tar.gz: ~$(hM "$est")   на SSD свободно: $free_h"
 free_mb=$(df -m --output=avail "$SSD" | tail -1)
-(( free_mb > est )) || die "на $SSD свободно ${free_mb}M — мало для оценки ~${est}M"
+(( free_mb > est )) || die "на $SSD свободно $(hM "$free_mb") — мало для оценки ~$(hM "$est")"
 read -rp "Начать упаковку? (y = да, Enter/N = отмена) " a
 if [[ ! ${a:-n} =~ ^[Yy]$ ]]; then
     warn "Отменено пользователем — ничего не записано."
@@ -244,37 +251,34 @@ targz() { # $1=archive name, остальное — пути от $HOME
     ok "$1 — $(human "$out")"
 }
 
-for s in "${SEL[@]}"; do
-    case "$s" in
-        packages)
-            if (( DRY )); then
-                dry "записал бы packages/{apt-list,flatpak-list,code-extensions,dconf.dump,crontab,systemd-user-units}.txt"
-            else
-                dpkg --get-selections > "$RUN_DIR/packages/apt-list.txt"
-                command -v flatpak >/dev/null && flatpak list --app --columns=application > "$RUN_DIR/packages/flatpak-list.txt" || true
-                command -v code >/dev/null && code --list-extensions > "$RUN_DIR/packages/code-extensions.txt" || true
-                command -v dconf >/dev/null && dconf dump / > "$RUN_DIR/packages/dconf.dump" || true
-                crontab -l > "$RUN_DIR/packages/crontab.txt" 2>/dev/null || true
-                systemctl --user list-unit-files --state=enabled --no-legend --plain > "$RUN_DIR/packages/systemd-user-units.txt" || true
-            fi
-            ok "манифесты ${DRY:+(dry-run) }готовы в packages/"
-            ;;
-        appimages)
-            if (( DRY )); then
-                dry "скопировал бы $(echo "$APPS_FIND" | grep -c .) AppImage в $RUN_DIR/appimages/"
-                echo "$APPS_FIND" | sed 's/^/    [dry-run] cp /'
-            else
-                echo "$APPS_FIND" > "$RUN_DIR/appimages/list.txt"
-                echo "$APPS_FIND" | while IFS= read -r f; do cp -v "$f" "$RUN_DIR/appimages/"; done | tail -3
-                ok "appimages: $(ls "$RUN_DIR/appimages"/*.AppImage 2>/dev/null | wc -l) шт."
-            fi
-            ;;
-        dotfiles) targz dotfiles.tar.gz "${DOT_DIRS[@]}" "${DOT_FILES[@]}";;
-        data)     targz data.tar.gz Documents;;
-        agents)   targz agents.tar.gz .qoder .codex .claude .agents .jcode "Documents/[10] SKILLS";;
-        browsers) targz browsers.tar.gz "${BROWSER_DIRS[@]}";;
-    esac
-done
+if [[ -n "${GRP_SEL[packages]:-}" ]]; then
+    if (( DRY )); then
+        dry "записал бы packages/{apt-list,flatpak-list,code-extensions,dconf.dump,crontab,systemd-user-units}.txt"
+    else
+        dpkg --get-selections > "$RUN_DIR/packages/apt-list.txt"
+        command -v flatpak >/dev/null && flatpak list --app --columns=application > "$RUN_DIR/packages/flatpak-list.txt" || true
+        command -v code >/dev/null && code --list-extensions > "$RUN_DIR/packages/code-extensions.txt" || true
+        command -v dconf >/dev/null && dconf dump / > "$RUN_DIR/packages/dconf.dump" || true
+        crontab -l > "$RUN_DIR/packages/crontab.txt" 2>/dev/null || true
+        systemctl --user list-unit-files --state=enabled --no-legend --plain > "$RUN_DIR/packages/systemd-user-units.txt" || true
+    fi
+    ok "манифесты ${DRY:+(dry-run) }готовы в packages/"
+fi
+if [[ -n "${GRP_SEL[appimg]:-}" ]]; then
+    read -ra APPS_SEL <<<"${GRP_SEL[appimg]}"
+    if (( DRY )); then
+        dry "скопировал бы ${#APPS_SEL[@]} AppImage в $RUN_DIR/appimages/"
+        printf '    [dry-run] cp %s\n' "${APPS_SEL[@]}"
+    else
+        printf '%s\n' "${APPS_SEL[@]}" > "$RUN_DIR/appimages/list.txt"
+        printf '%s\n' "${APPS_SEL[@]}" | while IFS= read -r f; do cp -v "$f" "$RUN_DIR/appimages/"; done | tail -3
+        ok "appimages: $(ls "$RUN_DIR/appimages"/*.AppImage 2>/dev/null | wc -l) шт."
+    fi
+fi
+[[ -n "${GRP_SEL[dot]:-}" ]]     && targz dotfiles.tar.gz ${GRP_SEL[dot]}
+[[ -n "${GRP_SEL[data]:-}" ]]    && targz data.tar.gz "${GRP_SEL[data]}"
+[[ -n "${GRP_SEL[agent]:-}" ]]   && targz agents.tar.gz ${GRP_SEL[agent]}
+[[ -n "${GRP_SEL[browser]:-}" ]] && targz browsers.tar.gz ${GRP_SEL[browser]}
 
 # ---------- 6. Самообновление инструмента на SSD ----------
 info "Синхронизация инструмента на SSD..."
