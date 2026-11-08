@@ -30,7 +30,7 @@
 
 ```
 os-migrate-tool/
-├── pack.sh unpack.sh mapping.tsv exclude.txt README.md SKILL.md   # самообновляются при каждом прогоне
+├── pack.sh unpack.sh mapping.tsv exclude.txt migrate.conf README.md SKILL.md  # самообновляются
 └── archives/
     ├── 2026-11-09_ubuntu/      # прогон = дата_исходная-ОС
     │   ├── manifest.txt        # дерево + sha256
@@ -38,6 +38,13 @@ os-migrate-tool/
     │   └── *.tar.gz
     └── latest -> 2026-11-09_ubuntu
 ```
+
+## migrate.conf — пути (без хардкода в скриптах)
+
+Все пути упаковки заданы в `migrate.conf`: `APPIMG_DIRS`, `DOT_DIRS`, `DOT_FILES`,
+`AGENT_DIRS` (в home), `AGENT_CONFIG_DIRS` (данные агентов в .config), `BROWSER_DIRS`,
+`DATA_DIRS`, `TMP_DIRS` (пусто — /tmp не пакуем), `EXTRA_DIRS`, `COMPRESS_ESTIMATE`.
+Каждый путь — отдельная строка в чеклисте pack.sh (группа → детали).
 
 ## mapping.tsv
 

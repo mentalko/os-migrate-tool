@@ -161,20 +161,32 @@ touch "$SSD/.omt-write-test" 2>/dev/null && rm -f "$SSD/.omt-write-test" \
     || die "диск $SSD не доступен на запись (ro-маунт?)"
 ok "SSD: $SSD (свободно $(df -h --output=avail "$SSD" | tail -1))"
 
-# ---------- 3. Компоненты: группы с проваливанием ----------
+# ---------- 3. Компоненты: конфиг + группы с проваливанием ----------
 hM() { awk -v m="$1" 'BEGIN{ if (m>=1024) printf "%.1fG", m/1024; else printf "%dM", m }'; }
 size_of() { local s=0 p; for p in "$@"; do [[ -e "$HOME/$p" || -e "$p" ]] && s=$(( s + $(du -sm --apparent-size "$HOME/$p" 2>/dev/null | cut -f1) )); done; echo "$s"; }
 m_of() { du -sm --apparent-size "$1" 2>/dev/null | cut -f1; }
 
-DOT_DIRS=(.config .ssh .gnupg .local/share/fonts .local/bin .local/share/applications)
-DOT_FILES=(.zshrc .bashrc .profile .gitconfig .gitignore_global .bash_history .zsh_history)
-AGENT_DIRS=(.qoder .codex .claude .agents .jcode "Documents/[10] SKILLS")
-BROWSER_DIRS=(.config/google-chrome .config/BraveSoftware .config/chromium .mozilla)
+CONF="$TOOL_DIR/migrate.conf"
+[[ -f "$CONF" ]] || die "нет конфига путей: $CONF (см. migrate.conf в репозитории)"
+# shellcheck disable=SC1090
+source "$CONF"
+: "${APPIMG_DIRS:=}" "${DOT_DIRS:=}" "${DOT_FILES:=}" "${AGENT_DIRS:=}" \
+  "${AGENT_CONFIG_DIRS:=}" "${BROWSER_DIRS:=}" "${DATA_DIRS:=}" "${TMP_DIRS:=}" \
+  "${EXTRA_DIRS:=}" "${COMPRESS_ESTIMATE:=55}"
 
-APPS_FIND=$(find "$HOME/Applications" "$HOME/bin" "$HOME/Desktop" -maxdepth 1 -name '*.AppImage' 2>/dev/null || true)
+read -ra DOT_ARR    <<<"$DOT_DIRS $DOT_FILES"
+read -ra AGENT_ARR  <<<"$AGENT_DIRS $AGENT_CONFIG_DIRS"
+read -ra BROWSER_ARR<<<"$BROWSER_DIRS"
+read -ra DATA_ARR   <<<"$DATA_DIRS"
+read -ra TMP_ARR    <<<"$TMP_DIRS"
+read -ra EXTRA_ARR  <<<"$EXTRA_DIRS"
+[[ -n "$APPIMG_DIRS" ]] && APPS_FIND=$(eval find $APPIMG_DIRS -maxdepth 1 -name '*.AppImage' 2>/dev/null || true)
 
 MG_GROUPS=(packages appimages dotfiles data agents browsers)
-declare -A GRP_DESC GRP_HAS_SUB GRP_EXPANDED SUBS   # SUBS["grp|tag"]="desc;size;onoff;hint;path"
+[[ ${#TMP_ARR[@]} -gt 0 && -n "${TMP_ARR[0]:-}" ]] && MG_GROUPS+=(tmp)
+[[ ${#EXTRA_ARR[@]} -gt 0 && -n "${EXTRA_ARR[0]:-}" ]] && MG_GROUPS+=(extra)
+
+declare -A GRP_DESC GRP_HAS_SUB GRP_STATE_OFF SUBS   # SUBS["grp|tag"]="desc;size;onoff;hint;path"
 add_sub() { # grp tag desc sizeMB onoff hint path
     SUBS["$1|$2"]="$3;$4;$5;$6;$7"
 }
@@ -183,7 +195,7 @@ grp_total() { # сумма размеров подпунктов группы
     for k in "${!SUBS[@]}"; do [[ "$k" == "$g|"* ]] && { IFS=';' read -r _ v _ _ _ <<<"${SUBS[$k]}"; t=$(( t + v )); }; done
     echo "$t"
 }
-# --- подпункты групп ---
+# --- подпункты групп (из migrate.conf) ---
 if [[ -n "$APPS_FIND" ]]; then
     GRP_HAS_SUB[appimages]=1
     while IFS= read -r f; do
@@ -191,31 +203,52 @@ if [[ -n "$APPS_FIND" ]]; then
     done <<<"$APPS_FIND"
 fi
 GRP_HAS_SUB[dotfiles]=1
-for p in "${DOT_DIRS[@]}" "${DOT_FILES[@]}"; do
+for p in "${DOT_ARR[@]}"; do
     [[ -e "$HOME/$p" ]] && add_sub dotfiles "dot:$p" "$p" "$(m_of "$HOME/$p")" ON "~/$p" "~/$p"
 done
 GRP_HAS_SUB[agents]=1
-for p in "${AGENT_DIRS[@]}"; do
+for p in ${AGENT_DIRS}; do
     [[ -e "$HOME/$p" ]] && add_sub agents "agent:$p" "агент: $p" "$(m_of "$HOME/$p")" ON "~/$p — сессии, задачи, скиллы" "~/$p"
 done
+for p in ${AGENT_CONFIG_DIRS}; do
+    [[ -e "$HOME/$p" ]] && add_sub agents "agent:$p" "агент-конфиг: $p" "$(m_of "$HOME/$p")" ON "~/$p" "$p"
+done
 GRP_HAS_SUB[browsers]=1
-for p in "${BROWSER_DIRS[@]}"; do
+for p in "${BROWSER_ARR[@]}"; do
     [[ -e "$HOME/$p" ]] && add_sub browsers "browser:$p" "браузер: $p" "$(m_of "$HOME/$p")" OFF "~/$p|на Cachy понадобится пароль старого keyring" "$p"
 done
+GRP_HAS_SUB[data]=1
+for p in "${DATA_ARR[@]}"; do
+    [[ -e "$HOME/$p" ]] && add_sub data "data:$p" "данные: $p" "$(m_of "$HOME/$p")" ON "~/$p" "$p"
+done
+if [[ ${#TMP_ARR[@]} -gt 0 && -n "${TMP_ARR[0]:-}" ]]; then
+    GRP_HAS_SUB[tmp]=1
+    for p in "${TMP_ARR[@]}"; do
+        [[ -e "$HOME/$p" || -e "$p" ]] && add_sub tmp "tmp:$p" "tmp: $p" "$(m_of "$HOME/$p")" OFF "~/$p — пересоздаваемые данные" "$p"
+    done
+fi
+if [[ ${#EXTRA_ARR[@]} -gt 0 && -n "${EXTRA_ARR[0]:-}" ]]; then
+    GRP_HAS_SUB[extra]=1
+    for p in "${EXTRA_ARR[@]}"; do
+        [[ -e "$HOME/$p" ]] && add_sub extra "extra:$p" "extra: $p" "$(m_of "$HOME/$p")" OFF "~/$p" "$p"
+    done
+fi
 
 # группы без подпунктов
 declare -A GRP_SIZE PATH_OF
 GRP_DESC[packages]="манифесты apt/flatpak/vscode/dconf/cron"; GRP_SIZE[packages]=15; PATH_OF[packages]=""
 GRP_DESC[appimages]="AppImage-программы"; GRP_SIZE[appimages]=0
-GRP_DESC[dotfiles]="конфиги, ssh, шрифты, история"; GRP_SIZE[dotfiles]=0
-GRP_DESC[data]="~/Documents целиком (без os-migrate-tool, [10] SKILLS)"; GRP_SIZE[data]="$(m_of "$HOME/Documents")"; PATH_OF[data]="Documents"
-GRP_DESC[agents]="AI-агенты: сессии, задачи, скиллы"; GRP_SIZE[agents]=0
+GRP_DESC[dotfiles]="конфиги, ssh, шрифты, история (без агент-конфигов .config)"; GRP_SIZE[dotfiles]=0
+GRP_DESC[agents]="AI-агенты: сессии, задачи, скиллы + их данные в .config"; GRP_SIZE[agents]=0
 GRP_DESC[browsers]="профили браузеров (пароли, куки, расширения)"; GRP_SIZE[browsers]=0
+GRP_DESC[data]="данные: ~/Documents и т.п."; GRP_SIZE[data]=0
+GRP_DESC[tmp]="пересоздаваемые данные (/tmp и т.п.)"; GRP_SIZE[tmp]=0
+GRP_DESC[extra]="дополнительные пути из migrate.conf"; GRP_SIZE[extra]=0
 
-# состояние группы: ON/OFF; подпункты берут свои дефолты (browsers — OFF)
+# состояние группы: ON/OFF; подпункты берут свои дефолты (browsers/tmp/extra — OFF)
 declare -A GRP_STATE SUB_STATE
 for g in "${MG_GROUPS[@]}"; do GRP_STATE[$g]=ON; done
-GRP_STATE[browsers]=OFF
+for g in browsers tmp extra; do GRP_STATE[$g]=OFF; done
 for k in "${!SUBS[@]}"; do
     IFS=';' read -r _ _ o _ _ <<<"${SUBS[$k]}"
     SUB_STATE[$k]="$o"
@@ -393,7 +426,7 @@ for s in "${SEL[@]}"; do
         GRP_SEL[$s]="${PATH_OF[$s]}"
     fi
 done
-est=$(( total * 55 / 100 ))   # tar.gz ~55% от исходника
+est=$(( total * COMPRESS_ESTIMATE / 100 ))   # оценка сжатия из migrate.conf
 free_h=$(df -h --output=avail "$SSD" | tail -1 | tr -d ' ')
 echo "--------------------------------------------------"
 warn "Сырой объём: $(hM "$total")   оценка после tar.gz: ~$(hM "$est")   на SSD свободно: $free_h"
@@ -416,6 +449,17 @@ else
 fi
 info "Прогон: $RUN_DIR"
 
+# dedup-исключения генерируются из migrate.conf: агентские пути и браузеры
+# едут в своих архивах, поэтому вырезаются из dotfiles/data
+EXCL_DEDUP="$RUN_DIR/.exclude-dedup"
+if (( ! DRY )); then
+    : > "$EXCL_DEDUP"
+    for p in ${AGENT_DIRS} ${AGENT_CONFIG_DIRS} ${BROWSER_DIRS}; do echo "$p/" >> "$EXCL_DEDUP"; done
+    echo "Documents/os-migrate-tool/" >> "$EXCL_DEDUP"
+fi
+for p in ${AGENT_DIRS} ${AGENT_CONFIG_DIRS} ${BROWSER_DIRS}; do echo "$p/" >> "$EXCL_DEDUP"; done
+echo "Documents/os-migrate-tool/" >> "$EXCL_DEDUP"
+
 targz() { # $1=archive name, $2=exclude file, остальное — пути от $HOME
     local out="$RUN_DIR/$1"; local excl="$2"; shift 2
     local -a paths=(); local p
@@ -425,7 +469,7 @@ targz() { # $1=archive name, $2=exclude file, остальное — пути о
         local raw=0
         for p in "${paths[@]}"; do raw=$(( raw + $(m_of "$HOME/$p") )); done
         dry "tar -czf $out  (${paths[*]})"
-        ok "$1 — ~$(hM "$raw") (оценка tar.gz: ~$(hM $(( raw*55/100 )))) [dry-run]"
+        ok "$1 — ~$(hM "$raw") (оценка tar.gz: ~$(hM $(( raw*COMPRESS_ESTIMATE/100 )))) [dry-run]"
         return 0
     fi
     ( cd "$HOME" && tar -czf "$out" --exclude-from="$TOOL_DIR/$excl" --files-from <(printf '%s\n' "${paths[@]}") )
@@ -460,17 +504,17 @@ if [[ -n "${GRP_SEL[appimg]:-}" ]]; then
         ok "appimages: $(ls "$RUN_DIR/appimages"/*.AppImage 2>/dev/null | wc -l) шт."
     fi
 fi
-[[ -n "${GRP_SEL[dot]:-}" ]]     && targz dotfiles.tar.gz exclude-dedup.txt ${GRP_SEL[dot]}
-[[ -n "${GRP_SEL[data]:-}" ]]    && targz data.tar.gz exclude-dedup.txt "${GRP_SEL[data]}"
+[[ -n "${GRP_SEL[dot]:-}" ]]     && targz dotfiles.tar.gz "$EXCL_DEDUP" ${GRP_SEL[dot]}
+[[ -n "${GRP_SEL[data]:-}" ]]    && targz data.tar.gz "$EXCL_DEDUP" "${GRP_SEL[data]}"
 [[ -n "${GRP_SEL[agent]:-}" ]]   && targz agents.tar.gz exclude.txt ${GRP_SEL[agent]}
 [[ -n "${GRP_SEL[browser]:-}" ]] && targz browsers.tar.gz exclude.txt ${GRP_SEL[browser]}
 
 # ---------- 6. Самообновление инструмента на SSD ----------
 info "Синхронизация инструмента на SSD..."
 if (( DRY )); then
-    dry "cp pack.sh unpack.sh mapping.tsv exclude.txt exclude-dedup.txt README.md SKILL.md -> $TOOL_ROOT/"
+    dry "cp pack.sh unpack.sh mapping.tsv exclude.txt migrate.conf README.md SKILL.md -> $TOOL_ROOT/"
 else
-    cp -v "$TOOL_DIR"/{pack.sh,unpack.sh,mapping.tsv,exclude.txt,exclude-dedup.txt,README.md,SKILL.md} "$TOOL_ROOT/" 2>/dev/null | tail -1
+    cp -v "$TOOL_DIR"/{pack.sh,unpack.sh,mapping.tsv,exclude.txt,migrate.conf,README.md,SKILL.md} "$TOOL_ROOT/" 2>/dev/null | tail -1
 fi
 
 # ---------- 7. Манифест ----------
