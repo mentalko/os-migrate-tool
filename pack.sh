@@ -12,6 +12,9 @@ ok()   { echo -e "\e[32m✓\e[0m $*"; }
 warn() { echo -e "\e[33m!\e[0m $*"; }
 human(){ du -sh --apparent-size "$1" 2>/dev/null | cut -f1; }
 
+# любой неожиданный вылет — с причиной и строкой
+trap 'printf "\e[?25h" >&2; printf "\e[31mОШИБКА\e[0m: сбой на строке %s: %s\n" "$LINENO" "$BASH_COMMAND" >&2' ERR
+
 [[ $EUID -eq 0 ]] && die "не запускай от root — потеряются права на файлы"
 
 # ---------- 0. --dry-run ----------
@@ -55,7 +58,7 @@ ui_checklist() {
             fi
         done
         echo >&2
-        printf '\e[2m  ↪ %s\e[0m\n' "${hints[cur]}" >&2
+        printf '\e[2m  ↪ [%s] %s\e[0m\n' "${tags[cur]}" "${hints[cur]}" >&2
     }
     _draw
     while true; do
@@ -76,7 +79,7 @@ ui_checklist() {
         esac
         _draw
     done
-    printf '\e[?25h' >&2
+    printf '\e[H\e[J\e[?25h' >&2          # стереть меню с экрана
     for i in "${!tags[@]}"; do [[ ${offs[i]} == ON ]] && echo "${tags[i]}"; done
 }
 
@@ -102,7 +105,7 @@ ui_menu() { # одиночный выбор: tag;desc[;hint]
             fi
         done
         echo >&2
-        printf '\e[2m  ↪ %s\e[0m\n' "${hints[cur]}" >&2
+        printf '\e[2m  ↪ [%s] %s\e[0m\n' "${tags[cur]}" "${hints[cur]}" >&2
     }
     _drawm
     while true; do
@@ -120,7 +123,7 @@ ui_menu() { # одиночный выбор: tag;desc[;hint]
         esac
         _drawm
     done
-    printf '\e[?25h' >&2
+    printf '\e[H\e[J\e[?25h' >&2          # стереть меню с экрана
     echo "${tags[cur]}"
 }
 
@@ -199,7 +202,11 @@ echo "--------------------------------------------------"
 warn "Сырой объём: ${total}M   оценка после tar.gz: ~${est}M"
 free_mb=$(df -m --output=avail "$SSD" | tail -1)
 (( free_mb > est )) || die "на $SSD свободно ${free_mb}M — мало для оценки ~${est}M"
-read -rp "Начать упаковку? [y/N] " a; [[ ${a:-n} =~ ^[Yy]$ ]] || exit 0
+read -rp "Начать упаковку? (y = да, Enter/N = отмена) " a
+if [[ ! ${a:-n} =~ ^[Yy]$ ]]; then
+    warn "Отменено пользователем — ничего не записано."
+    exit 0
+fi
 
 # ---------- 5. Прогон ----------
 RUN_NAME="$(date +%F)_${OS_ID}"
