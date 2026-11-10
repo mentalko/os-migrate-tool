@@ -105,30 +105,6 @@ SUB_KEYS() { # теги подпунктов группы в порядке до
     while IFS= read -r k; do [[ -n "$k" ]] && echo "$k"; done <<<"${SUB_ORDER[$1]:-}"
     return 0
 }
-grp_total() { # сумма размеров подпунктов группы
-    local g="$1" t=0 k v
-    while IFS= read -r k; do
-        [[ -n "$k" ]] || continue
-        IFS=';' read -r _ v _ _ <<<"${SUBS[$g|$k]}"
-        t=$(( t + ${v:-0} ))
-    done < <(SUB_KEYS "$g")
-    echo "$t"
-}
-sum_selected() { # живой итог для шапки TUI
-    local t=0 g k sz
-    for g in "${MG_GROUPS[@]}"; do
-        if [[ ${GRP_HAS_SUB[$g]:-} ]]; then
-            while IFS= read -r k; do
-                [[ -n "$k" && ${SUB_STATE[$g|$k]:-} == ON ]] || continue
-                IFS=';' read -r _ sz _ _ <<<"${SUBS[$g|$k]}"
-                t=$(( t + ${sz:-0} ))
-            done < <(SUB_KEYS "$g")
-        elif [[ ${GRP_STATE[$g]} == ON ]]; then
-            t=$(( t + ${GRP_SIZE[$g]:-0} ))
-        fi
-    done
-    echo "$t"
-}
 
 MG_GROUPS=(packages appimages dotfiles data agents browsers)
 if arr_nonempty "${FLATPAK_ARR[@]}";   then MG_GROUPS+=(flatpak);   fi
@@ -222,41 +198,55 @@ for k in "${_cb_subs_off[@]}"; do
 done
 
 # ---------- 5. TUI: группы с разворотом подпунктов на месте ----------
+# Хоткеи: ↑/↓ или j/k — курсор · пробел — галочка · → раскрыть · ← свернуть/
+# вернуться к группе · a/n — все/ничего · q — отмена · Enter — ок.
+# Все перемещения — через присваивание: (( )) под set -e возвращает 1 при
+# нулевом результате (упало при переходе стрелкой на строку 0).
 ui_tree() {
-    local cur=0
+    local cur=0 TUI_SEL=0
     local -a rows=() kinds=() tags=() descs=() sizes=() hints=()  # kinds: grp|sub; rows: "g" или "g|tag"
     local i g k n cnt sz d h p m tw
 
-    build() {
+    build() { # один проход по подпунктам: размер группы, счётчики и живой итог
         rows=(); kinds=(); tags=(); descs=(); sizes=(); hints=()
-        tw=0
+        tw=0; TUI_SEL=0
         for g in "${MG_GROUPS[@]}"; do
-            # строка группы
-            sz=$(grp_total "$g"); [[ -z ${GRP_HAS_SUB[$g]:-} ]] && sz="${GRP_SIZE[$g]:-0}"
             n=0; cnt=0
+            local gt=0 st=0 v
             while IFS= read -r k; do
                 [[ -n "$k" ]] || continue
-                cnt=$((cnt+1)); [[ ${SUB_STATE[$g|$k]:-} == ON ]] && n=$((n+1))
+                IFS=';' read -r _ v _ _ <<<"${SUBS[$g|$k]}"
+                gt=$(( gt + ${v:-0} ))
+                cnt=$((cnt+1))
+                if [[ ${SUB_STATE[$g|$k]:-} == ON ]]; then n=$((n+1)); st=$(( st + ${v:-0} )); fi
             done < <(SUB_KEYS "$g")
-            local mark=""
-            if [[ ${GRP_HAS_SUB[$g]:-} ]]; then
-                if [[ ${GRP_EXPANDED[$g]:-} ]]; then mark=" [${n}/${cnt}] · ← свернуть"
-                else mark=" [${n}/${cnt}] · → — раскрыть"; fi
+            sz="$gt"
+            if [[ -z ${GRP_HAS_SUB[$g]:-} ]]; then
+                sz="${GRP_SIZE[$g]:-0}"
+                [[ ${GRP_STATE[$g]} == ON ]] && st="$sz"
             fi
-            rows+=("$g"); kinds+=(grp); tags+=("$g"); descs+=("${GRP_DESC[$g]}$mark"); sizes+=("$(hM "$sz")")
+            TUI_SEL=$(( TUI_SEL + st ))
+            # строка группы: ▾ раскрыта, ▸ свёрнута, ' ' — без подпунктов
+            local glyph=" "
+            if [[ ${GRP_HAS_SUB[$g]:-} ]]; then
+                if [[ ${GRP_EXPANDED[$g]:-} ]]; then glyph="▾"; else glyph="▸"; fi
+            fi
+            local mark=""
+            [[ ${GRP_HAS_SUB[$g]:-} ]] && mark=" [${n}/${cnt}]"
+            rows+=("$g"); kinds+=(grp); tags+=("$g"); descs+=("$glyph ${GRP_DESC[$g]}$mark"); sizes+=("$(hM "$sz")")
             if [[ ${GRP_EXPANDED[$g]:-} ]]; then
-                hints+=("${GRP_DESC[$g]}|пробел — отметить/снять всю группу|← — свернуть подпункты")
+                hints+=("${GRP_DESC[$g]}|пробел — отметить/снять группу целиком|← — свернуть подпункты|q — отмена")
             else
-                hints+=("${GRP_DESC[$g]}|→ — показать подпункты")
+                hints+=("${GRP_DESC[$g]}|→ — раскрыть подпункты|q — отмена")
             fi
             (( ${#g} > tw )) && tw=${#g}
-            # строки подпунктов (раскрытая группа — на месте, без отдельного экрана)
+            # подпункты раскрытой группы — прямо в списке
             if [[ ${GRP_EXPANDED[$g]:-} ]]; then
                 while IFS= read -r k; do
                     [[ -n "$k" ]] || continue
                     IFS=';' read -r d sz h p <<<"${SUBS[$g|$k]}"
                     rows+=("$g|$k"); kinds+=(sub); tags+=("$k"); descs+=("$d")
-                    sizes+=("$(hM "${sz:-0}")"); hints+=("$h")
+                    sizes+=("$(hM "${sz:-0}")"); hints+=("$h|q — отмена")
                     (( ${#k} > tw )) && tw=${#k}
                 done < <(SUB_KEYS "$g")
             fi
@@ -268,8 +258,8 @@ ui_tree() {
     draw() {
         printf '\e[H\e[J' >&2
         echo "== Что пакуем?" >&2
-        echo -e "  \e[2m↑/↓ — курсор · пробел — галочка · →/← — раскрыть/свернуть · a/n — все/ничего · Enter — ок\e[0m" >&2
-        echo -e "  \e[2mВыбрано сырого объёма: ~$(hM "$(sum_selected)")\e[0m" >&2
+        echo -e "  \e[2m↑/↓ — курсор · пробел — галочка · →/← — раскрыть/свернуть · a/n — все/ничего · q — отмена · Enter — ок\e[0m" >&2
+        echo -e "  \e[2mВыбрано сырого объёма: ~$(hM "$TUI_SEL")\e[0m" >&2
         echo >&2
         for i in "${!rows[@]}"; do
             if [[ ${kinds[i]} == grp ]]; then
@@ -294,6 +284,9 @@ ui_tree() {
         return 0
     }
 
+    move_up()   { if (( cur > 0 )); then cur=$((cur-1)); fi; return 0; }
+    move_down() { if (( cur < ${#rows[@]}-1 )); then cur=$((cur+1)); fi; return 0; }
+
     toggle() {
         local r="${rows[cur]}" kk
         if [[ ${kinds[cur]} == grp ]]; then
@@ -305,8 +298,31 @@ ui_tree() {
         fi
         return 0
     }
-    expand()   { local r="${rows[cur]}"; [[ ${kinds[cur]} == grp && ${GRP_HAS_SUB[$r]:-} ]] && GRP_EXPANDED[$r]=1; return 0; }
-    collapse() { local r="${rows[cur]}"; [[ ${kinds[cur]} == grp ]] && unset "GRP_EXPANDED[$r]"; return 0; }
+    expand() { # → / l: раскрыть свёрнутую группу, курсор — на первый подпункт
+        local r="${rows[cur]}"
+        [[ ${kinds[cur]} == grp && ${GRP_HAS_SUB[$r]:-} ]] || return 0
+        if [[ ! ${GRP_EXPANDED[$r]:-} ]]; then
+            GRP_EXPANDED[$r]=1
+            if (( cur < ${#rows[@]}-1 )); then cur=$((cur+1)); fi   # первый подпункт (rows пересоберутся)
+        fi
+        return 0
+    }
+    collapse() { # ← / h: с подпункта — к родительской группе; на раскрытой группе — свернуть
+        local r="${rows[cur]}" i
+        if [[ ${kinds[cur]} == sub ]]; then
+            for (( i=cur-1; i>=0; i-- )); do
+                if [[ ${kinds[i]} == grp && ${rows[i]} == "${r%%|*}" ]]; then cur=$i; return 0; fi
+            done
+        elif [[ ${GRP_EXPANDED[$r]:-} ]]; then
+            unset "GRP_EXPANDED[$r]"
+        fi
+        return 0
+    }
+    cancel() {
+        printf '\e[H\e[J\e[?25h' >&2
+        warn "Отменено пользователем — ничего не записано."
+        exit 0
+    }
 
     build; draw
     while true; do
@@ -314,13 +330,13 @@ ui_tree() {
         case "$key" in
             $'\x1b') read -rsn2 -t 0.2 seq || true
                 case "$seq" in
-                    '[A') (( cur > 0 )) && (( --cur ));;
-                    '[B') (( cur < ${#rows[@]}-1 )) && (( ++cur ));;
+                    '[A') move_up;;
+                    '[B') move_down;;
                     '[C') expand;;
                     '[D') collapse;;
                 esac;;
-            'j'|'J'|'о'|'О') (( cur < ${#rows[@]}-1 )) && (( ++cur ));;
-            'k'|'K'|'л'|'Л') (( cur > 0 )) && (( --cur ));;
+            'j'|'J'|'о'|'О') move_down;;
+            'k'|'K'|'л'|'Л') move_up;;
             ' '|',') toggle;;
             '>'|'l'|'L'|'д'|'Д') expand;;
             '<'|'h'|'H'|'b'|'B') collapse;;
@@ -332,6 +348,7 @@ ui_tree() {
                     GRP_STATE[$g]=OFF
                     while IFS= read -r k; do [[ -n "$k" ]] && SUB_STATE["$g|$k"]=OFF; done < <(SUB_KEYS "$g")
                 done;;
+            'q'|'Q'|'й'|'Й') cancel;;
             ''|$'\n'|$'\r') break;;
             *) continue;;
         esac

@@ -71,11 +71,12 @@ ui_menu() { # одиночный выбор: tag;desc[;hint]  -> tag
         case "$key" in
             $'\x1b') read -rsn2 -t 0.2 seq || true
                 case "$seq" in
-                    '[A') (( cur > 0 )) && (( --cur ));;
-                    '[B') (( cur < ${#tags[@]}-1 )) && (( ++cur ));;
+                    '[A') if (( cur > 0 )); then cur=$((cur-1)); fi;;
+                    '[B') if (( cur < ${#tags[@]}-1 )); then cur=$((cur+1)); fi;;
                 esac;;
-            'j'|'J'|'о'|'О') (( cur < ${#tags[@]}-1 )) && (( ++cur ));;
-            'k'|'K'|'л'|'Л') (( cur > 0 )) && (( --cur ));;
+            'j'|'J'|'о'|'О') if (( cur < ${#tags[@]}-1 )); then cur=$((cur+1)); fi;;
+            'k'|'K'|'л'|'Л') if (( cur > 0 )); then cur=$((cur-1)); fi;;
+            'q'|'Q'|'й'|'Й') printf '\e[H\e[J\e[?25h' >&2; return 0;;   # отмена — пустой результат
             ''|$'\n'|$'\r') break;;
             *) continue;;
         esac
@@ -119,14 +120,15 @@ ui_checklist() { # множественный выбор: tag;desc;onoff[;hint] 
         case "$key" in
             $'\x1b') read -rsn2 -t 0.2 seq || true
                 case "$seq" in
-                    '[A') (( cur > 0 )) && (( --cur ));;
-                    '[B') (( cur < ${#tags[@]}-1 )) && (( ++cur ));;
+                    '[A') if (( cur > 0 )); then cur=$((cur-1)); fi;;
+                    '[B') if (( cur < ${#tags[@]}-1 )); then cur=$((cur+1)); fi;;
                 esac;;
-            'j'|'J'|'о'|'О') (( cur < ${#tags[@]}-1 )) && (( ++cur ));;
-            'k'|'K'|'л'|'Л') (( cur > 0 )) && (( --cur ));;
+            'j'|'J'|'о'|'О') if (( cur < ${#tags[@]}-1 )); then cur=$((cur+1)); fi;;
+            'k'|'K'|'л'|'Л') if (( cur > 0 )); then cur=$((cur-1)); fi;;
             ' '|',') [[ ${offs[cur]} == ON ]] && offs[cur]=OFF || offs[cur]=ON;;
             'a'|'A'|'ф'|'Ф') for i in "${!tags[@]}"; do offs[i]=ON; done;;
             'n'|'N'|'т'|'Т') for i in "${!tags[@]}"; do offs[i]=OFF; done;;
+            'q'|'Q'|'й'|'Й') printf '\e[H\e[J\e[?25h' >&2; return 0;;   # отмена — ничего не выбрано
             ''|$'\n'|$'\r') break;;
             *) continue;;
         esac
