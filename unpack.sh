@@ -1,69 +1,28 @@
 #!/usr/bin/env bash
 # os-migrate-tool :: unpack.sh
 # Восстановление на CachyOS (Arch) из прогона на SSD.
-# Запускается прямо с SSD:  ./unpack.sh [--packages|--appimages|--dotfiles|--data|--agents|--browsers|all]
+# Запускается прямо с SSD:  ./unpack.sh [--packages|--appimages|--dotfiles|--data|--agents|--browsers|all] [--dry-run]
+# Флаги можно комбинировать; all = все компоненты прогона.
 set -euo pipefail
 
 TOOL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-HOME="${HOME:-$(getent passwd "$(id -u)" | cut -d: -f6)}"
-
-die()  { echo "ОШИБКА: $*" >&2; exit 1; }
-info() { echo -e "\e[36m→\e[0m $*"; }
-ok()   { echo -e "\e[32m✓\e[0m $*"; }
-warn() { echo -e "\e[33m!\e[0m $*"; }
-human(){ du -sh --apparent-size "$1" 2>/dev/null | cut -f1; }
-
-if command -v whiptail >/dev/null 2>&1; then
-    ui_menu() {
-        local t="$1"; shift; local -a args=()
-        for it in "$@"; do args+=("${it%%;*}" "${it#*;}"); done
-        whiptail --menu "$t" 22 78 14 "${args[@]}" 3>&1 1>&2 2>&3 || true
-    }
-    ui_checklist() { # $1=title, $2..: tag;desc;onoff
-        local t="$1"; shift; local -a args=()
-        for it in "$@"; do IFS=';' read -r a b c <<<"$it"; args+=("$a" "$b" "$c"); done
-        whiptail --separate-output --checklist "$t" 24 78 12 "${args[@]}" 3>&1 1>&2 2>&3 || true
-    }
-    ui_msg()  { whiptail --msgbox "$1" 20 78 || true; }
-else
-    ui_menu() { local t="$1"; shift; echo "== $t" >&2
-        local -a tags=() descs=()
-        for it in "$@"; do IFS=';' read -r a b <<<"$it"; tags+=("$a"); descs+=("$b"); done
-        for i in "${!tags[@]}"; do echo "  $((i+1))) ${tags[i]}  —  ${descs[i]}" >&2; done
-        read -rp "Выбор: " n >&2; (( n>=1 && n<=${#tags[@]} )) && echo "${tags[n-1]}"; return 0; }
-    ui_checklist() { # $1=title, $2..: tag;desc;onoff
-        local t="$1"; shift
-        local -a tags=() descs=() offs=()
-        local it a b c i m
-        for it in "$@"; do IFS=';' read -r a b c <<<"$it"; tags+=("$a"); descs+=("$b"); offs+=("$c"); done
-        echo "== $t" >&2
-        for i in "${!tags[@]}"; do
-            m=" "; [[ ${offs[i]} == ON ]] && m="x"
-            echo "  [$m] $((i+1))) ${tags[i]} — ${descs[i]}" >&2; done
-        read -rp "Номера через пробел (Enter — оставить как есть): " ns >&2
-        for n in $ns; do (( n>=1 && n<=${#tags[@]} )) || continue
-            [[ ${offs[n-1]} == ON ]] && offs[n-1]=OFF || offs[n-1]=ON; done
-        for i in "${!tags[@]}"; do [[ ${offs[i]} == ON ]] && echo "${tags[i]}"; done; return 0; }
-    ui_msg()  { echo; echo "== $1"; }
-fi
-
-[[ $EUID -eq 0 ]] && die "не запускай от root — права на файлы поедут от root"
+# shellcheck disable=SC1091
+source "$TOOL_DIR/lib.sh"
 
 # ---------- 0. --dry-run ----------
-DRY=0
+omt_dryrun "$@"
 CLEAN_ARGS=()
-for arg in "$@"; do
-    if [[ "$arg" == "--dry-run" || "$arg" == "-n" ]]; then DRY=1; else CLEAN_ARGS+=("$arg"); fi
-done
-dry() { echo -e "\e[35m[dry-run]\e[0m $*"; }
-(( DRY )) && warn "РЕЖИМ DRY-RUN: ничего не будет установлено и распаковано, только отчёт."
+for arg in "$@"; do [[ "$arg" == "--dry-run" || "$arg" == "-n" ]] || CLEAN_ARGS+=("$arg"); done
 set -- "${CLEAN_ARGS[@]}"
+(( DRY )) && warn "РЕЖИМ DRY-RUN: ничего не будет установлено и распаковано, только отчёт."
+
+require_not_root
 
 # ---------- 1. ОС ----------
 . /etc/os-release
 if [[ "${ID:-}" != cachyos && "${ID_LIKE:-}" != *arch* ]]; then
     warn "Текущая ОС: ${PRETTY_NAME:-?} — unpack.sh рассчитан на CachyOS/Arch."
-    read -rp "Продолжить всё равно? [y/N] " a; [[ ${a:-n} =~ ^[Yy]$ ]] || exit 1
+    read -rp "Продолжить всё равно? [y/N] " a || a=""; [[ ${a:-n} =~ ^[Yy]$ ]] || exit 1
 fi
 
 # ---------- 2. Выбор прогона ----------
@@ -79,7 +38,6 @@ RUN="$TOOL_DIR/archives/$pick"
 ok "Прогон: $RUN ($(human "$RUN"))"
 
 # ---------- 3. Компоненты ----------
-component_exists() { [[ -s "$RUN/$1" ]]; }
 COMPONENTS=(
   "packages;манифесты + установка по mapping.tsv"
   "appimages;копирование в ~/Applications"
@@ -92,7 +50,25 @@ COMPONENTS=(
   "tmp.tar.gz;tmp-каталоги"
   "extra.tar.gz;дополнительные пути"
 )
-if [[ $# -gt 0 && "$1" != all ]]; then SEL=("$@")
+
+# выбор: аргументы CLI (`all` = всё, что есть), иначе интерактивный чеклист
+if [[ $# -gt 0 && "$1" == all ]]; then
+    SEL=()
+    for c in "${COMPONENTS[@]}"; do
+        IFS=';' read -r tag desc <<<"$c"
+        if [[ "$tag" == *.tar.gz ]]; then [[ -f "$RUN/$tag" ]] && SEL+=("$tag")
+        else [[ -d "$RUN/$tag" ]] && SEL+=("$tag"); fi
+    done
+elif [[ $# -gt 0 ]]; then
+    SEL=()
+    for a in "$@"; do
+        found=0
+        for c in "${COMPONENTS[@]}"; do IFS=';' read -r tag _ <<<"$c"; [[ "$tag" == "$a" ]] && found=1; done
+        if (( ! found )); then die "неизвестный компонент: $a (есть: ${COMPONENTS[*]%%;*} | all)"; fi
+        [[ "$a" == *.tar.gz && ! -f "$RUN/$a" ]] && die "в прогоне нет $a"
+        [[ "$a" != *.tar.gz && ! -d "$RUN/$a" ]] && die "в прогоне нет $a/"
+        SEL+=("$a")
+    done
 else
     CHECKS=(); for c in "${COMPONENTS[@]}"; do
         IFS=';' read -r tag desc <<<"$c"
@@ -100,38 +76,31 @@ else
         else [[ -d "$RUN/$tag" ]] && CHECKS+=("$tag;каталог — $desc;OFF"); fi
     done
     ((${#CHECKS[@]})) || die "в прогоне нет ни одного компонента"
-    if command -v whiptail >/dev/null 2>&1; then
-        SEL=$(ui_checklist "Что восстанавливаем?" "${CHECKS[@]}")
-    else
-        echo; echo "== Что восстанавливаем?"; for i in "${!CHECKS[@]}"; do
-            IFS=';' read -r t d s <<<"${CHECKS[i]}"; echo "  $((i+1))) $t — $d ($s)"; done
-        read -rp "Номера через пробел: " ns; SEL=""
-        for n in $ns; do IFS=';' read -r t _ _ <<<"${CHECKS[n-1]}"; SEL+="$t"$'\n'; done
-    fi
+    SEL_STR=$(ui_checklist "Что восстанавливаем?" "${CHECKS[@]}")
+    mapfile -t SEL <<<"$SEL_STR"
 fi
-mapfile -t SEL <<<"$SEL"; SEL=("${SEL[@]:-}")
-((${#SEL[@]})) && [[ -n "${SEL[0]}" ]] || die "ничего не выбрано"
+[[ ${#SEL[@]} -gt 0 && -n "${SEL[0]:-}" ]] || die "ничего не выбрано"
 
 # ---------- вспомогательное ----------
-ask_conflict() { # $1=цель; возвращает код: 0=распаковывать, 1=skip, 2=backup
-    local target="$1"
-    local -a opts=("skip;не трогать существующее" "backup;переместить существующее в *.bak-premigrate" "overwrite;перезаписать")
-    ch=$(ui_menu "«$(basename "$target")» уже существует. Что делать?" "${opts[@]}")
-    case "$ch" in
-        skip) return 1;;
-        backup) mv "$target" "$target.bak-premigrate"; return 0;;
-        overwrite) return 0;;
-        *) return 1;;
-    esac
-}
-
 extract_tar() { # $1=archive file
     local arch="$1" name; name=$(basename "$arch")
-    # конфликт = если первый путь архива уже существует в $HOME
-    local first; first=$(tar -tzf "$arch" | head -1)
-    if [[ -e "$HOME/$first" ]]; then
-        if (( DRY )); then dry "«$first» уже существует — skip/backup/overwrite (выбор)"; return 0; fi
-        ask_conflict "$HOME/$first" || { warn "$name — пропущен"; return 0; }
+    # конфликт = верхнеуровневые пути архива, уже существующие в $HOME
+    local tops
+    tops=$(tar -tzf "$arch" | sed 's:/.*::' | sort -u | while IFS= read -r t; do
+        [[ -n "$t" && -e "$HOME/$t" ]] && echo "$t"
+    done || true)
+    if [[ -n "$tops" ]]; then
+        if (( DRY )); then dry "«$name»: уже существуют: $(echo "$tops" | tr '\n' ' ') — skip/backup/overwrite (выбор)"; return 0; fi
+        local ch
+        ch=$(ui_menu "«$name» — уже существуют: $(echo "$tops" | tr '\n' ' '). Что делать?" \
+            "skip;не трогать существующее" \
+            "backup;переместить существующее в *.bak-premigrate" \
+            "overwrite;перезаписать")
+        case "$ch" in
+            backup) while IFS= read -r t; do mv "$HOME/$t" "$HOME/$t.bak-premigrate"; done <<<"$tops";;
+            overwrite) :;;
+            *) warn "$name — пропущен"; return 0;;
+        esac
     fi
     if (( DRY )); then ok "$name — распакован ($(human "$arch")) [dry-run]"; return 0; fi
     tar -xzf "$arch" -C "$HOME" && ok "$name — распакован ($(human "$arch"))"
@@ -147,8 +116,8 @@ for s in "${SEL[@]}"; do
             info "Сверка apt-list с mapping.tsv..."
             installed=0; while IFS=$'\t' read -r pkg status _rest; do
                 [[ "$pkg" =~ ^# || -z "$pkg" ]] && continue
-                # найдём строку в apt-list
-                if ! grep -qE "^${pkg}[[:space:]]" "$RUN/packages/apt-list.txt"; then continue; fi
+                # точное совпадение первого поля (grep -E ломался на '+' в именах: g++, libstdc++6)
+                if ! awk -v p="$pkg" '$1==p{f=1} END{exit !f}' "$RUN/packages/apt-list.txt"; then continue; fi
                 case "$status" in
                     skip) ok "  $pkg — skip (не переносится)";;
                     native|aur)
@@ -164,6 +133,9 @@ for s in "${SEL[@]}"; do
             [[ -f "$MISSING.tmp" ]] && { cat "$MISSING.tmp" >> "$MISSING"; rm "$MISSING.tmp"; }
             # flatpak
             if [[ -s "$RUN/packages/flatpak-list.txt" ]]; then
+                if (( ! DRY )); then
+                    flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo 2>/dev/null || true
+                fi
                 info "Flatpak-приложения:"
                 while read -r app; do [[ -n "$app" ]] || continue; if (( DRY )); then dry "flatpak install -y flathub $app"; else flatpak install -y flathub "$app" || warn "  flatpak $app — не установился"; fi; done < "$RUN/packages/flatpak-list.txt"
             fi
