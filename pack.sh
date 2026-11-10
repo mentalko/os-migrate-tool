@@ -290,7 +290,7 @@ ui_tree() {
     toggle() {
         local r="${rows[cur]}" kk
         if [[ ${kinds[cur]} == grp ]]; then
-            local ns=OFF; [[ ${GRP_STATE[$r]} == ON ]] && ns=ON
+            local ns=ON; [[ ${GRP_STATE[$r]} == ON ]] && ns=OFF   # флип: ON→OFF, иначе ON
             GRP_STATE[$r]="$ns"
             while IFS= read -r kk; do [[ -n "$kk" ]] && SUB_STATE["$r|$kk"]="$ns"; done < <(SUB_KEYS "$r")
         else
