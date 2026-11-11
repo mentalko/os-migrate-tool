@@ -88,7 +88,9 @@ lib.sh. На FAT/exFAT/NTFS-SSD запускать `bash pack.sh` / `bash unpack
    (пример: бэкап `agent-sessions-20261013_18443/logs/sessions` — путь умер);
 3. дефолты чекбоксов (`CHECKBOX_GROUPS_OFF`, `CHECKBOX_SUBS_OFF`) — пересмотреть
    под новую систему (что тяжёлое/опциональное);
-4. не хардкодить пути в pack.sh/unpack.sh — только правкой migrate.conf.
+4. новый путь → сразу добавить описание в `DESC_MAP` (`путь|что в каталоге`),
+   иначе в чеклисте будет только путь без пояснения;
+5. не хардкодить пути в pack.sh/unpack.sh — только правкой migrate.conf.
 
 ## Правила
 

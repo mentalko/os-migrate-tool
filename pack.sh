@@ -54,7 +54,7 @@ source "$CONF"
 : "${APPIMG_DIRS:=}" "${DOT_DIRS:=}" "${DOT_FILES:=}" "${AGENT_DIRS:=}" \
   "${AGENT_CONFIG_DIRS:=}" "${BROWSER_DIRS:=}" "${DATA_DIRS:=}" "${TMP_DIRS:=}" \
   "${EXTRA_DIRS:=}" "${AGENT_SESSIONS_DIRS:=}" "${CHECKBOX_GROUPS_OFF:=}" \
-  "${CHECKBOX_SUBS_OFF:=}" "${COMPRESS_ESTIMATE:=55}"
+  "${CHECKBOX_SUBS_OFF:=}" "${DESC_MAP:=}" "${COMPRESS_ESTIMATE:=55}"
 
 IFS=':' read -ra APPIMG_ARR     <<<"$APPIMG_DIRS"
 IFS=':' read -ra DOT_DIRS_ARR   <<<"$DOT_DIRS"
@@ -95,6 +95,20 @@ done
 hM() { awk -v m="$1" 'BEGIN{ if (m>=1024) printf "%.1fG", m/1024; else printf "%dM", m }'; }
 m_of() { local p="$1"; [[ "$p" == /* ]] || p="$HOME/$p"; du -sm --apparent-size "$p" 2>/dev/null | cut -f1; }
 
+# описания пунктов из migrate.conf (DESC_MAP: "путь|описание")
+declare -A DESC
+while IFS= read -r line; do
+    [[ -z "$line" || "$line" == \#* || "$line" == *'|'* ]] || continue
+    k="${line%%|*}"
+    [[ -n "$k" ]] || continue
+    DESC["$k"]="${line#*|}"
+done <<<"$DESC_MAP"
+desc_of() { # $1=ключ (путь или имя AppImage), $2=fallback
+    local d="${DESC[$1]:-}"
+    [[ -n "$d" ]] && { echo "$d"; return 0; }
+    echo "$2"
+}
+
 declare -A SUBS SUB_ORDER GRP_DESC GRP_HAS_SUB GRP_STATE GRP_EXPANDED GRP_SIZE PATH_OF
 add_sub() { # grp tag desc sizeMB hint path   (SUBS = "desc;size;hint;path")
     SUBS["$1|$2"]="$3;$4;$5;$6"
@@ -119,53 +133,53 @@ if [[ -n "$APPS_FIND" ]]; then
         [[ -n "$f" ]] || continue
         b=$(basename "$f"); tag="appimg:$b"
         [[ -n "${SUBS[appimages|$tag]:-}" ]] && tag="appimg:$f"   # дубли имён — тег по полному пути
-        add_sub appimages "$tag" "AppImage: $b" "$(m_of "$f")" "$f" "$f"
+        add_sub appimages "$tag" "$(desc_of "$b" "AppImage: $b")" "$(m_of "$f")" "$f" "$f"
     done <<<"$APPS_FIND"
 fi
 GRP_HAS_SUB[dotfiles]=1
 for p in "${DOT_ARR[@]}"; do
-    [[ -n "$p" && -e "$HOME/$p" ]] && add_sub dotfiles "dot:$p" "$p" "$(m_of "$HOME/$p")" "~/$p" "$p"
+    [[ -n "$p" && -e "$HOME/$p" ]] && add_sub dotfiles "dot:$p" "$(desc_of "$p" "$p")" "$(m_of "$HOME/$p")" "~/$p" "$p"
 done
 GRP_HAS_SUB[agents]=1
 for p in "${AGENT_DIRS_ARR[@]}"; do
-    [[ -n "$p" && -e "$HOME/$p" ]] && add_sub agents "agent:$p" "агент: $p" "$(m_of "$HOME/$p")" "~/$p — сессии, задачи, скиллы" "$p"
+    [[ -n "$p" && -e "$HOME/$p" ]] && add_sub agents "agent:$p" "$(desc_of "$p" "агент: $p")" "$(m_of "$HOME/$p")" "~/$p" "$p"
 done
 for p in "${AGENT_CONF_ARR[@]}"; do
-    [[ -n "$p" && -e "$HOME/$p" ]] && add_sub agents "agent:$p" "агент-конфиг: $p" "$(m_of "$HOME/$p")" "~/$p" "$p"
+    [[ -n "$p" && -e "$HOME/$p" ]] && add_sub agents "agent:$p" "$(desc_of "$p" "агент-конфиг: $p")" "$(m_of "$HOME/$p")" "~/$p" "$p"
 done
 for p in "${AGENT_SESSIONS_ARR[@]}"; do
-    [[ -n "$p" && -e "$HOME/$p" ]] && add_sub agents "agent:$p" "сессии: $p" "$(m_of "$HOME/$p")" "~/$p — сессии (AGENT_SESSIONS_DIRS)" "$p"
+    [[ -n "$p" && -e "$HOME/$p" ]] && add_sub agents "agent:$p" "$(desc_of "$p" "сессии: $p")" "$(m_of "$HOME/$p")" "~/$p — сессии (AGENT_SESSIONS_DIRS)" "$p"
 done
 GRP_HAS_SUB[browsers]=1
 for p in "${BROWSER_ARR[@]}"; do
-    [[ -n "$p" && -e "$HOME/$p" ]] && add_sub browsers "browser:$p" "браузер: $p" "$(m_of "$HOME/$p")" "~/$p|на Cachy понадобится пароль старого keyring" "$p"
+    [[ -n "$p" && -e "$HOME/$p" ]] && add_sub browsers "browser:$p" "$(desc_of "$p" "браузер: $p")" "$(m_of "$HOME/$p")" "~/$p|на Cachy понадобится пароль старого keyring" "$p"
 done
 GRP_HAS_SUB[data]=1
 for p in "${DATA_ARR[@]}"; do
-    [[ -n "$p" && -e "$HOME/$p" ]] && add_sub data "data:$p" "данные: $p" "$(m_of "$HOME/$p")" "~/$p" "$p"
+    [[ -n "$p" && -e "$HOME/$p" ]] && add_sub data "data:$p" "$(desc_of "$p" "данные: $p")" "$(m_of "$HOME/$p")" "~/$p" "$p"
 done
 if arr_nonempty "${TMP_ARR[@]}"; then
     GRP_HAS_SUB[tmp]=1
     for p in "${TMP_ARR[@]}"; do
-        [[ -n "$p" && ( -e "$HOME/$p" || -e "$p" ) ]] && add_sub tmp "tmp:$p" "tmp: $p" "$(m_of "$HOME/$p")" "~/$p — пересоздаваемые данные" "$p"
+        [[ -n "$p" && ( -e "$HOME/$p" || -e "$p" ) ]] && add_sub tmp "tmp:$p" "$(desc_of "$p" "tmp: $p")" "$(m_of "$HOME/$p")" "~/$p — пересоздаваемые данные" "$p"
     done
 fi
 if arr_nonempty "${EXTRA_ARR[@]}"; then
     GRP_HAS_SUB[extra]=1
     for p in "${EXTRA_ARR[@]}"; do
-        [[ -n "$p" && -e "$HOME/$p" ]] && add_sub extra "extra:$p" "extra: $p" "$(m_of "$HOME/$p")" "~/$p" "$p"
+        [[ -n "$p" && -e "$HOME/$p" ]] && add_sub extra "extra:$p" "$(desc_of "$p" "extra: $p")" "$(m_of "$HOME/$p")" "~/$p" "$p"
     done
 fi
 if arr_nonempty "${FLATPAK_ARR[@]}"; then
     GRP_HAS_SUB[flatpak]=1
     for p in "${FLATPAK_ARR[@]}"; do
-        [[ -n "$p" && -e "$HOME/$p" ]] && add_sub flatpak "flatpak:$p" "flatpak-данные: $p" "$(m_of "$HOME/$p")" "~/$p — профили flatpak-приложений" "$p"
+        [[ -n "$p" && -e "$HOME/$p" ]] && add_sub flatpak "flatpak:$p" "$(desc_of "$p" "flatpak-данные: $p")" "$(m_of "$HOME/$p")" "~/$p — профили flatpak-приложений" "$p"
     done
 fi
 if arr_nonempty "${TOOLCHAIN_ARR[@]}"; then
     GRP_HAS_SUB[toolchain]=1
     for p in "${TOOLCHAIN_ARR[@]}"; do
-        [[ -n "$p" && -e "$HOME/$p" ]] && add_sub toolchain "toolchain:$p" "тулчейн: $p" "$(m_of "$HOME/$p")" "~/$p — тяжёлое, обычно переустанавливают" "$p"
+        [[ -n "$p" && -e "$HOME/$p" ]] && add_sub toolchain "toolchain:$p" "$(desc_of "$p" "тулчейн: $p")" "$(m_of "$HOME/$p")" "~/$p — тяжёлое, обычно переустанавливают" "$p"
     done
 fi
 

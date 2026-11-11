@@ -184,7 +184,8 @@ class Ctx:
                 text = f"  [{'x' if g['on'] else ' '}] {glyph} {g['desc']}{mark}"
                 size = g['size'] if cnt == 0 else sum(s['size'] for s in self.subs[g['g']])
             elif self.mode == 'TREE':
-                text = f"    └ [{'x' if it['on'] else ' '}] {it['tag']}  {it['desc']}"
+                tag_disp = it['tag'].split(':', 1)[1] if ':' in it['tag'] else it['tag']
+                text = f"    └ [{'x' if it['on'] else ' '}] {tag_disp}  {it['desc']}"
                 size = it['size']
                 if not cur_row:
                     attr = curses.A_DIM | attr

@@ -67,6 +67,10 @@ os-migrate-tool/
 - `CHECKBOX_GROUPS_OFF="browsers:toolchain:tmp:extra"` — группы, по умолчанию выключенные;
 - `CHECKBOX_SUBS_OFF=""` — отдельные подпункты поверх группового дефолта (формат `группа|тег`).
 
+Описания пунктов: `DESC_MAP` — строки `путь|описание` (для AppImage — имя файла).
+Их видит чеклист под каждым подпунктом: что в каталоге и какие там программы.
+Добавил путь — добавь описание.
+
 ## mapping.tsv
 
 `ubuntu_pkg<TAB>status<TAB>install_cmd<TAB>notes`
