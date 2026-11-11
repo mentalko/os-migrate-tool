@@ -14,8 +14,10 @@ description: >
 
 Перенос Ubuntu → CachyOS через внешний SSD. Скрипты живут на SSD
 (`os-migrate-tool/`), при каждом прогоне самообновляются там же.
-Общий код (хелперы + TUI на голом bash, whiptail не нужен) — в `lib.sh`;
-на FAT/exFAT/NTFS-SSD запускать `bash pack.sh` / `bash unpack.sh`.
+Общий код (хелперы + проверка окружения) — в `lib.sh`. TUI — `tui.py`
+на curses (stdlib python, без установки): alt-screen, скролл длинных
+списков, переживает resize; при недоступном python3 — bash-fallback в
+lib.sh. На FAT/exFAT/NTFS-SSD запускать `bash pack.sh` / `bash unpack.sh`.
 
 ## Команды
 

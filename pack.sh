@@ -198,11 +198,64 @@ for k in "${_cb_subs_off[@]}"; do
 done
 
 # ---------- 5. TUI: группы с разворотом подпунктов на месте ----------
-# Хоткеи: ↑/↓ или j/k — курсор · пробел — галочка · → раскрыть · ← свернуть/
-# вернуться к группе · a/n — все/ничего · q — отмена · Enter — ок.
+# Хоткеи: ↑/↓ или j/k — курсор · пробел — галочка · → раскрыть (нырок в первый
+# подпункт) · ← свернуть/вернуться к группе · a/n — все/ничего · q — отмена · Enter — ок.
+# Движок: tui.py на curses (lib.sh ставит OMT_TUI=1, если python3+доступен) —
+# альтернативный экран, скролл вьюпорта, переживает resize. Fallback — bash-рисовалка.
+ui_tree() {
+    if (( OMT_TUI )); then
+        _ui_tree_python
+    else
+        _ui_tree_bash
+    fi
+    return 0
+}
+
+_tree_feed() { # TREE-протокол для tui.py: группы + подпункты в исходном порядке
+    local g k d s h tot
+    for g in "${MG_GROUPS[@]}"; do
+        if [[ ${GRP_HAS_SUB[$g]:-} ]]; then
+            tot=0
+            while IFS= read -r k; do
+                [[ -n "$k" ]] || continue
+                IFS=';' read -r d s h <<<"${SUBS[$g|$k]}"
+                tot=$(( tot + ${s:-0} ))
+            done < <(SUB_KEYS "$g")
+            printf 'G;%s;%s;%s;%s\n' "$g" "${GRP_DESC[$g]}" "$tot" "${GRP_STATE[$g]}"
+        else
+            printf 'G;%s;%s;%s;%s\n' "$g" "${GRP_DESC[$g]}" "${GRP_SIZE[$g]:-0}" "${GRP_STATE[$g]}"
+        fi
+        while IFS= read -r k; do
+            [[ -n "$k" ]] || continue
+            IFS=';' read -r d s h <<<"${SUBS[$g|$k]}"
+            printf 'S;%s;%s;%s;%s;%s;%s\n' "$g" "$k" "$d" "${s:-0}" "${SUB_STATE[$g|$k]}" "$h"
+        done < <(SUB_KEYS "$g")
+    done
+    return 0
+}
+
+_ui_tree_python() { # tui.py возвращает финальные состояния — раскладываем в словари
+    local out line key _rc=0
+    out=$( _tree_feed | OMT_TUI_TITLE="Что пакуем?" python3 "$OMT_LIB_DIR/tui.py" TREE ) || _rc=$?
+    if (( _rc == 1 )); then              # q/Esc — отмена
+        warn "Отменено пользователем — ничего не записано."
+        exit 0
+    fi
+    (( _rc == 0 )) || die "tui: дерево завершилось с ошибкой ($_rc)"
+    while IFS= read -r line; do
+        case "$line" in
+            G\;*) key="${line#G;}"; GRP_STATE[${key%;*}]="${line##*;}";;
+            S\;*) key="${line#S;}"; SUB_STATE[${key%;*}]="${line##*;}";;
+        esac
+    done <<<"$out"
+    return 0
+}
+
+# --- fallback: TUI на голом bash (если нет python3/curses) ---
 # Все перемещения — через присваивание: (( )) под set -e возвращает 1 при
 # нулевом результате (упало при переходе стрелкой на строку 0).
-ui_tree() {
+_ui_tree_bash() {
+    printf '\e[?1049h' >&2              # альтернативный экран: не мусорим скроллбек
     local cur=0 TUI_SEL=0
     local -a rows=() kinds=() tags=() descs=() sizes=() hints=()  # kinds: grp|sub; rows: "g" или "g|tag"
     local i g k n cnt sz d h p m tw
@@ -319,7 +372,7 @@ ui_tree() {
         return 0
     }
     cancel() {
-        printf '\e[H\e[J\e[?25h' >&2
+        printf '\e[?1049l\e[?25h' >&2
         warn "Отменено пользователем — ничего не записано."
         exit 0
     }
@@ -354,7 +407,7 @@ ui_tree() {
         esac
         build; draw
     done
-    printf '\e[H\e[J\e[?25h' >&2
+    printf '\e[?1049l\e[?25h' >&2        # выйти из alt-экрана, вернуть курсор
     return 0
 }
 
@@ -547,7 +600,7 @@ fi
 
 # ---------- 10. Самообновление инструмента на SSD ----------
 info "Синхронизация инструмента на SSD..."
-TOOL_FILES=(lib.sh pack.sh unpack.sh mapping.tsv exclude.txt migrate.conf README.md SKILL.md)
+TOOL_FILES=(lib.sh tui.py pack.sh unpack.sh mapping.tsv exclude.txt migrate.conf README.md SKILL.md)
 if (( DRY )); then
     dry "cp ${TOOL_FILES[*]} -> $TOOL_ROOT/"
 else

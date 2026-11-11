@@ -35,7 +35,7 @@ bash unpack.sh --dry-run dotfiles.tar.gz               # отчёт без из�
 
 ```
 os-migrate-tool/
-├── lib.sh pack.sh unpack.sh mapping.tsv exclude.txt migrate.conf README.md SKILL.md  # самообновляются
+├── lib.sh tui.py pack.sh unpack.sh mapping.tsv exclude.txt migrate.conf README.md SKILL.md  # самообновляются
 └── archives/
     ├── 2026-11-09_ubuntu/      # прогон = дата_исходная-ОС
     │   ├── manifest.txt        # дерево + sha256
@@ -45,11 +45,13 @@ os-migrate-tool/
     └── latest -> 2026-11-09_ubuntu   # или latest.txt, если ФС не умеет симлинки
 ```
 
-## lib.sh — общий код
+## lib.sh + tui.py — общий код и TUI-движок
 
-Хелперы (сообщения, dry-run, проверка root) и собственный TUI на голом bash
-(меню, чеклист, цвета, hint под курсором) живут в `lib.sh` и используются
-обоими скриптами. Whiptail не нужен.
+Хелперы (сообщения, dry-run, проверка root) — в `lib.sh`; TUI — в `tui.py`
+на **curses (stdlib python, ничего устанавливать не нужно)**: альтернативный
+экран (без мусора в скроллбеке), скролл вьюпорта при списках длиннее
+терминала, корректная перерисовка после resize. Если python3 недоступен —
+автоматический fallback на встроенный bash-TUI (lib.sh).
 
 ## migrate.conf — пути и дефолты чекбоксов (без хардкода в скриптах)
 
@@ -76,5 +78,8 @@ os-migrate-tool/
 
 ## Требования
 
-- bash ≥ 4.4 (на Cachy 5.2, на Ubuntu 5.x — ок), tar, lsblk, df — базовая система
-- TUI собственный (lib.sh): нужны стрелки/буквы в терминале, whiptail не требуется
+- bash ≥ 4.4, tar, lsblk, df — базовая система
+- **python3 с curses** (есть на Ubuntu и Cachy по умолчанию) — для TUI;
+  без него скрипты работают через bash-fallback
+- Формат SSD: FAT/exFAT/NTFS — ок (запуск через `bash pack.sh`; права/владельцы
+  хранятся внутри tar.gz; симлинк `latest` заменяется на `latest.txt`)

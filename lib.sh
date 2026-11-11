@@ -11,10 +11,18 @@ ok()   { echo -e "\e[32m✓\e[0m $*"; }
 warn() { echo -e "\e[33m!\e[0m $*"; }
 human(){ du -sh --apparent-size "$1" 2>/dev/null | cut -f1; }
 
-# любой неожиданный вылет — с причиной и строкой; вернуть курсор, если TUI рисовал
-trap 'printf "\e[?25h" >&2; printf "\e[31mОШИБКА\e[0m: сбой на строке %s: %s\n" "$LINENO" "$BASH_COMMAND" >&2' ERR
+# любой неожиданный вылет — с причиной и строкой; вернуть курсор/экран, если TUI рисовал
+trap 'printf "\e[?1049l\e[?25h" >&2; printf "\e[31mОШИБКА\e[0m: сбой на строке %s: %s\n" "$LINENO" "$BASH_COMMAND" >&2' ERR
 
 require_not_root() { [[ $EUID -eq 0 ]] && die "не запускай от root — права на файлы поедут от root"; return 0; }
+
+# ---------- TUI-движок: python/curses первичен (корректная перерисовка, скролл,
+# resize, alt-screen), bash-рисовалка — fallback. tui.py — stdlib, ставить нечего. ----------
+OMT_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+OMT_TUI=0
+if command -v python3 >/dev/null 2>&1 && python3 -c 'import curses' >/dev/null 2>&1; then
+    OMT_TUI=1
+fi
 
 omt_dryrun() { # --dry-run/-n в аргументах -> DRY=1
     DRY=0
@@ -42,6 +50,12 @@ _tty_required() { [[ -t 0 ]] || die "TUI требует интерактивно
 ui_menu() { # одиночный выбор: tag;desc[;hint]  -> tag
     _tty_required
     local title="$1"; shift
+    if (( OMT_TUI )); then
+        local _rc=0
+        printf 'M;%s\n' "$@" | OMT_TUI_TITLE="$title" python3 "$OMT_LIB_DIR/tui.py" MENU || _rc=$?
+        (( _rc <= 1 )) || die "tui: меню завершилось с ошибкой ($_rc)"   # 1 = отмена (пусто)
+        return 0
+    fi
     local -a tags=() descs=() hints=()
     local it t d h cur=0 i
     for it in "$@"; do
@@ -90,6 +104,12 @@ ui_menu() { # одиночный выбор: tag;desc[;hint]  -> tag
 ui_checklist() { # множественный выбор: tag;desc;onoff[;hint] -> выбранные теги построчно
     _tty_required
     local title="$1"; shift
+    if (( OMT_TUI )); then
+        local _rc=0
+        printf 'C;%s\n' "$@" | OMT_TUI_TITLE="$title" python3 "$OMT_LIB_DIR/tui.py" CHECK || _rc=$?
+        (( _rc <= 1 )) || die "tui: чеклист завершился с ошибкой ($_rc)"   # 1 = отмена (пусто)
+        return 0
+    fi
     local -a tags=() descs=() offs=() hints=()
     local it t d o h cur=0 i m
     for it in "$@"; do
