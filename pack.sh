@@ -614,7 +614,7 @@ fi
 
 # ---------- 10. Самообновление инструмента на SSD ----------
 info "Синхронизация инструмента на SSD..."
-TOOL_FILES=(lib.sh tui.py pack.sh unpack.sh mapping.tsv exclude.txt migrate.conf README.md SKILL.md)
+TOOL_FILES=(lib.sh tui.py pack.sh pack-kitty.sh unpack.sh mapping.tsv exclude.txt migrate.conf README.md SKILL.md)
 if (( DRY )); then
     dry "cp ${TOOL_FILES[*]} -> $TOOL_ROOT/"
 else
