@@ -53,17 +53,21 @@ lib.sh. На FAT/exFAT/NTFS-SSD запускать `bash pack.sh` / `bash unpack
 
 ```bash
 ./unpack.sh                          # полностью интерактивно
-./unpack.sh all                      # все компоненты прогона
-./unpack.sh --packages --appimages   # флаги можно комбинировать
-./unpack.sh --dry-run dotfiles.tar.gz extra.tar.gz   # отчёт без изменений
+./unpack.sh all                      # все сегменты бандла
+./unpack.sh dotfiles extra           # по именам сегментов (или --dotfiles --extra)
+./unpack.sh --dry-run agents         # отчёт без изменений
 ```
+Прогон = ОДИН бандл `archives/<дата>_<ос>.tar.gz` (сегменты компонентов
+внутри, под своими каталогами) + `.meta/` (manifest.txt, paths.tsv).
+Выборочная распаковка прокручивает бандл — домашние сегменты извлекаются
+одним проходом tar, список содержимого читается один раз.
 
 Режимы:
-- `--packages` — сверяет `packages/apt-list.txt` с `mapping.tsv`;
+- `packages` — сверяет `packages/apt-list.txt` из бандла с `mapping.tsv`;
   ставит через pacman/yay только записанное; не найденное → отчёт
   `missing-mapping.txt`, молча ничего не ставится.
-- `--appimages` — копирует в `~/Applications`, `chmod +x`.
-- `--dotfiles` / `--agents` / `--browsers` / `--data` — распаковка tar.gz.
+- `appimages` — копирует в `~/Applications`, `chmod +x`.
+- `dotfiles` / `agents` / `browsers` / `data` — извлечение сегмента из бандла.
   Конфликт: если верхнеуровневые пути архива уже есть в $HOME — один
   вопрос на архив: перезаписать / пропустить / backup (*.bak-premigrate).
 - Перед браузерами скрипт спросит про пароль старого keyring.
@@ -105,8 +109,9 @@ lib.sh. На FAT/exFAT/NTFS-SSD запускать `bash pack.sh` / `bash unpack
 - `mapping.tsv` — единственный источник истины для установки пакетов.
   Формат: `ubuntu_pkg<TAB>status<TAB>install_cmd<TAB>notes`;
   status ∈ {native, aur, skip}. Нет строки → только в отчёт.
-- Названия прогонов: `<дата>_<исходная-ос>` (берётся из /etc/os-release),
-  чтобы бэкапы до/после переезда не смешались.
+- Названия прогонов: `<дата>_<исходная-ос>.tar.gz` (+ `.meta/` рядом),
+  берётся из /etc/os-release, чтобы бэкапы до/после переезда не смешались.
+  Бандл — мульти-членный gzip: любое чтение только с `tar --ignore-zeros`.
 - Перед распаковкой браузеров убедиться, что пользователь помнит пароль
   старого keyring — иначе пароли в профиле не откроются.
 - Внимание: `agents.tar.gz` содержит креды агентов (~/.zcode/cli/credentials.json,

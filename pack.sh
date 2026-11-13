@@ -437,9 +437,9 @@ warn "Сырой объём: $(hM "$total")   оценка после tar.gz: ~$
 (( free_mb > est )) || die "на $SSD свободно $(hM "$free_mb") — мало для оценки ~$(hM "$est")"
 
 info "Планируемые архивы:"
-declare -A PLAN_ROWS=( [packages]="packages/" [appimages]="appimages/" [dotfiles]=dotfiles.tar.gz [data]=data.tar.gz \
-            [agents]=agents.tar.gz [browsers]=browsers.tar.gz [flatpak]=flatpak-data.tar.gz \
-            [toolchain]=toolchain.tar.gz [tmp]=tmp.tar.gz [extra]=extra.tar.gz )
+declare -A PLAN_ROWS=( [packages]="packages/" [appimages]="appimages/" [dotfiles]="dotfiles/" [data]="data/" \
+            [agents]="agents/" [browsers]="browsers/" [flatpak]="flatpak/" \
+            [toolchain]="toolchain/" [tmp]="tmp/" [extra]="extra/" )
 plan_total=0
 for grp in packages appimages dotfiles data agents browsers flatpak toolchain tmp extra; do
     [[ -n "${GRP_SIZE_PLAN[$grp]:-}" ]] || continue
@@ -454,22 +454,30 @@ if [[ ! ${a:-n} =~ ^[Yy]$ ]]; then
     exit 0
 fi
 
-# ---------- 8. Прогон ----------
+# ---------- 8. Прогон: один бандл .tar.gz на дату ----------
+# Сегменты компонентов дописываются в бандл как конкатенация gzip-членов,
+# каждый — под своим каталогом (dotfiles/, data/, …) через --transform.
 RUN_NAME="$(date +%F)_${OS_ID}"
-RUN_DIR="$TOOL_ROOT/archives/$RUN_NAME"
-if [[ -e "$RUN_DIR" ]]; then RUN_NAME="$(date +%F_%H%M)_${OS_ID}"; RUN_DIR="$TOOL_ROOT/archives/$RUN_NAME"; fi
-if (( DRY )); then
-    dry "mkdir -p $RUN_DIR/{packages,appimages}/"
-else
-    mkdir -p "$RUN_DIR/packages" "$RUN_DIR/appimages"
+META="$TOOL_ROOT/archives/$RUN_NAME.meta"
+BUNDLE="$TOOL_ROOT/archives/$RUN_NAME.tar.gz"
+if [[ -e "$BUNDLE" || -e "$META" ]]; then
+    RUN_NAME="$(date +%F_%H%M)_${OS_ID}"
+    META="$TOOL_ROOT/archives/$RUN_NAME.meta"
+    BUNDLE="$TOOL_ROOT/archives/$RUN_NAME.tar.gz"
 fi
-info "Прогон: $RUN_DIR"
+if (( DRY )); then
+    dry "mkdir -p $META"
+else
+    mkdir -p "$META/packages" "$META/appimages"
+    : > "$BUNDLE"
+fi
+info "Прогон: ${RUN_NAME}.tar.gz"
 
-# dedup-исключения генерируются один раз из migrate.conf: агентские пути, браузеры,
-# тулчейны и flatpak едут в своих архивах — вырезаются из dotfiles/data.
+# dedup-исключения генерируются один раз из инвентаря: агентские пути, браузеры,
+# тулчейны и flatpak едут в своих сегментах — вырезаются из dotfiles/data.
 EXCL_DEDUP=""
 if (( ! DRY )); then
-    EXCL_DEDUP="$RUN_DIR/.exclude-dedup"
+    EXCL_DEDUP="$META/.exclude-dedup"
     : > "$EXCL_DEDUP"
     for p in "${AGENT_DIRS_ARR[@]}" "${AGENT_CONF_ARR[@]}" "${BROWSER_ARR[@]}" "${FLATPAK_ARR[@]}" "${TOOLCHAIN_ARR[@]}"; do
         [[ -n "$p" ]] && printf '%s/\n' "$p" >> "$EXCL_DEDUP"
@@ -478,31 +486,31 @@ if (( ! DRY )); then
 fi
 EXCL_ALL="$TOOL_DIR/exclude.txt"
 
-targz() { # $1=имя архива, $2=exclude-файл (пусто = без исключений), $3=пути через \n (от $HOME)
-    local out="$RUN_DIR/$1" excl="$2" list="$3"
+seg_tar() { # $1=каталог сегмента в бандле, $2=exclude-файл (пусто = без), $3=пути через \n (от $HOME)
+    local seg="$1" excl="$2" list="$3"
     local -a paths=()
     local p raw=0
     while IFS= read -r p; do
         [[ -z "$p" ]] && continue
         [[ -e "$HOME/$p" ]] && paths+=("$p")
     done <<<"$list"
-    ((${#paths[@]})) || { warn "$1: нечего паковать, пропущен"; return 0; }
+    ((${#paths[@]})) || { warn "$seg/: нечего паковать, сегмент пропущен"; return 0; }
     if (( DRY )); then
         for p in "${paths[@]}"; do raw=$(( raw + $(m_of "$p") )); done
-        dry "tar -czf $out  (${paths[*]})"
-        ok "$1 — ~$(hM "$raw") (оценка tar.gz: ~$(hM $(( raw*COMPRESS_ESTIMATE/100 )))) [dry-run]"
+        dry "tar -cz --transform 's,^,$seg/,' … (${paths[*]})"
+        ok "$seg/ — ~$(hM "$raw") (оценка tar.gz: ~$(hM $(( raw*COMPRESS_ESTIMATE/100 )))) [dry-run]"
     else
-        if [[ -n "$excl" ]]; then
-            ( cd "$HOME" && tar -czf "$out" --exclude-from="$excl" --files-from <(printf '%s\n' "${paths[@]}") )
-        else
-            ( cd "$HOME" && tar -czf "$out" --files-from <(printf '%s\n' "${paths[@]}") )
-        fi
-        ok "$1 — $(human "$out")"
+        # procsub инлайном: fd /dev/fd/N живёт только внутри команды tar
+        local -a pre=()
+        [[ -n "$excl" ]] && pre=( --exclude-from="$excl" )
+        ( cd "$HOME" && tar -cz --transform "s,^,$seg/," "${pre[@]}" \
+            --files-from <(printf '%s\n' "${paths[@]}") ) >> "$BUNDLE"
+        ok "$seg/ — дописан в бандл (${#paths[@]} путей)"
     fi
     return 0
 }
 
-# ---------- 8a. Манифесты пакетов ----------
+# ---------- 8a. Манифесты пакетов (в meta, затем сегментом в бандл) ----------
 if [[ -n "${GRP_SIZE_PLAN[packages]:-}" ]]; then
     if (( DRY )); then
         dry "dpkg --get-selections > packages/apt-list.txt"
@@ -512,69 +520,74 @@ if [[ -n "${GRP_SIZE_PLAN[packages]:-}" ]]; then
         dry "crontab -l > packages/crontab.txt"
         dry "systemctl --user list-unit-files > packages/systemd-user-units.txt"
     else
-        dpkg --get-selections > "$RUN_DIR/packages/apt-list.txt"
-        command -v flatpak >/dev/null && flatpak list --app --columns=application > "$RUN_DIR/packages/flatpak-list.txt" || true
-        command -v code >/dev/null && code --list-extensions > "$RUN_DIR/packages/code-extensions.txt" || true
-        command -v dconf >/dev/null && dconf dump / > "$RUN_DIR/packages/dconf.dump" || true
-        crontab -l > "$RUN_DIR/packages/crontab.txt" 2>/dev/null || true
-        systemctl --user list-unit-files --state=enabled --no-legend --plain > "$RUN_DIR/packages/systemd-user-units.txt" || true
+        dpkg --get-selections > "$META/packages/apt-list.txt"
+        command -v flatpak >/dev/null && flatpak list --app --columns=application > "$META/packages/flatpak-list.txt" || true
+        command -v code >/dev/null && code --list-extensions > "$META/packages/code-extensions.txt" || true
+        command -v dconf >/dev/null && dconf dump / > "$META/packages/dconf.dump" || true
+        crontab -l > "$META/packages/crontab.txt" 2>/dev/null || true
+        systemctl --user list-unit-files --state=enabled --no-legend --plain > "$META/packages/systemd-user-units.txt" || true
+        ( cd "$META" && tar -cz packages ) >> "$BUNDLE"
+        ok "packages/ — дописан в бандл"
     fi
-    ok "манифесты ${DRY:+(dry-run) }готовы в packages/"
 fi
 
-# ---------- 8b. AppImage ----------
+# ---------- 8b. AppImage (в meta, затем сегментом в бандл) ----------
 if [[ -n "${GRP_SEL[appimg]:-}" ]]; then
     if (( DRY )); then
-        while IFS= read -r f; do [[ -n "$f" ]] && dry "cp \"$f\" -> $RUN_DIR/appimages/"; done <<<"${GRP_SEL[appimg]}"
+        while IFS= read -r f; do [[ -n "$f" ]] && dry "cp \"$f\" -> appimages/"; done <<<"${GRP_SEL[appimg]}"
     else
-        : > "$RUN_DIR/appimages/list.txt"
+        : > "$META/appimages/list.txt"
         n=0
         while IFS= read -r f; do
             [[ -n "$f" ]] || continue
-            printf '%s\n' "$f" >> "$RUN_DIR/appimages/list.txt"
-            cp "$f" "$RUN_DIR/appimages/" && n=$((n+1))
+            printf '%s\n' "$f" >> "$META/appimages/list.txt"
+            cp "$f" "$META/appimages/" && n=$((n+1))
         done <<<"${GRP_SEL[appimg]}"
-        ok "appimages: $n шт. (+list.txt)"
+        ( cd "$META" && tar -cz appimages ) >> "$BUNDLE"
+        ok "appimages/ — дописан в бандл ($n шт.)"
     fi
 fi
 
-# ---------- 8c. Архивы по группам ----------
-[[ -n "${GRP_SEL[dot]:-}" ]]       && targz dotfiles.tar.gz      "$EXCL_DEDUP"  "${GRP_SEL[dot]}"
-[[ -n "${GRP_SEL[data]:-}" ]]      && targz data.tar.gz          "$EXCL_DEDUP"  "${GRP_SEL[data]}"
-[[ -n "${GRP_SEL[agent]:-}" ]]     && targz agents.tar.gz        "$EXCL_ALL"    "${GRP_SEL[agent]}"
-[[ -n "${GRP_SEL[browser]:-}" ]]   && targz browsers.tar.gz      "$EXCL_ALL"    "${GRP_SEL[browser]}"
-[[ -n "${GRP_SEL[flatpak]:-}" ]]   && targz flatpak-data.tar.gz  "$EXCL_ALL"    "${GRP_SEL[flatpak]}"
-[[ -n "${GRP_SEL[toolchain]:-}" ]] && targz toolchain.tar.gz     "$EXCL_ALL"    "${GRP_SEL[toolchain]}"
-[[ -n "${GRP_SEL[tmp]:-}" ]]       && targz tmp.tar.gz           "$EXCL_ALL"    "${GRP_SEL[tmp]}"
-[[ -n "${GRP_SEL[extra]:-}" ]]     && targz extra.tar.gz         "$EXCL_ALL"    "${GRP_SEL[extra]}"
+# ---------- 8c. Сегменты по группам ----------
+[[ -n "${GRP_SEL[dot]:-}" ]]       && seg_tar dotfiles   "$EXCL_DEDUP"  "${GRP_SEL[dot]}"
+[[ -n "${GRP_SEL[data]:-}" ]]      && seg_tar data       "$EXCL_DEDUP"  "${GRP_SEL[data]}"
+[[ -n "${GRP_SEL[agent]:-}" ]]     && seg_tar agents     "$EXCL_ALL"    "${GRP_SEL[agent]}"
+[[ -n "${GRP_SEL[browser]:-}" ]]   && seg_tar browsers   "$EXCL_ALL"    "${GRP_SEL[browser]}"
+[[ -n "${GRP_SEL[flatpak]:-}" ]]   && seg_tar flatpak    "$EXCL_ALL"    "${GRP_SEL[flatpak]}"
+[[ -n "${GRP_SEL[toolchain]:-}" ]] && seg_tar toolchain  "$EXCL_ALL"    "${GRP_SEL[toolchain]}"
+[[ -n "${GRP_SEL[tmp]:-}" ]]       && seg_tar tmp        "$EXCL_ALL"    "${GRP_SEL[tmp]}"
+[[ -n "${GRP_SEL[extra]:-}" ]]     && seg_tar extra      "$EXCL_ALL"    "${GRP_SEL[extra]}"
+
+# staging больше не нужен — содержимое внутри бандла
+if (( ! DRY )); then rm -rf "$META/packages" "$META/appimages"; fi
 
 # ---------- 9. paths.tsv: происхождение каждого пути ----------
 write_paths() {
     echo -e "group\ttag\tsize\tsource\tarchive\tdest"
     if [[ -n "${GRP_SIZE_PLAN[packages]:-}" ]]; then
-        echo -e "packages\tpackages\t15M\t(manifests: dpkg/flatpak/code/dconf/cron/systemd)\tpackages/\t\$HOME"
+        echo -e "packages\tpackages\t15M\t(manifests: dpkg/flatpak/code/dconf/cron/systemd)\t${RUN_NAME}.tar.gz:packages/\t\$HOME"
     fi
     if [[ -n "${GRP_SEL[appimg]:-}" ]]; then
         while IFS= read -r f; do
             [[ -n "$f" ]] || continue
-            echo -e "appimages\tappimg\t$(m_of "$f")M\t$f\tappimages/$(basename "$f")\t\$HOME/Applications/$(basename "$f")"
+            echo -e "appimages\tappimg\t$(m_of "$f")M\t$f\t${RUN_NAME}.tar.gz:appimages/$(basename "$f")\t\$HOME/Applications/$(basename "$f")"
         done <<<"${GRP_SEL[appimg]}"
     fi
-    local spec grp arch
-    for spec in "dot dotfiles.tar.gz" "data data.tar.gz" "agent agents.tar.gz" "browser browsers.tar.gz" \
-                "flatpak flatpak-data.tar.gz" "toolchain toolchain.tar.gz" "tmp tmp.tar.gz" "extra extra.tar.gz"; do
-        read -r grp arch <<<"$spec"
+    local spec grp seg
+    for spec in "dot dotfiles" "data data" "agent agents" "browser browsers" \
+                "flatpak flatpak" "toolchain toolchain" "tmp tmp" "extra extra"; do
+        read -r grp seg <<<"$spec"
         [[ -n "${GRP_SEL[$grp]:-}" ]] || continue
         while IFS= read -r f; do
             [[ -n "$f" ]] || continue
-            echo -e "$grp\t$grp\t-\t\$HOME/$f\t$arch\t\$HOME/$f"
+            echo -e "$grp\t$grp\t-\t\$HOME/$f\t${RUN_NAME}.tar.gz:$seg/$f\t\$HOME/$f"
         done <<<"${GRP_SEL[$grp]}"
     done
     return 0
 }
 if (( ! DRY )); then
-    write_paths > "$RUN_DIR/paths.tsv"
-    ok "paths.tsv записан ($(($(wc -l < "$RUN_DIR/paths.tsv")-1)) путей) — что, откуда и куда"
+    write_paths > "$META/paths.tsv"
+    ok "paths.tsv записан ($(($(wc -l < "$META/paths.tsv")-1)) путей) — что, откуда и куда"
 fi
 
 # ---------- 10. Самообновление инструмента на SSD ----------
@@ -588,28 +601,28 @@ else
     ok "скопировано: ${TOOL_FILES[*]}"
 fi
 
-# ---------- 11. Манифест ----------
+# ---------- 11. Манифест: sha256 бандла + дерево содержимого ----------
 if (( DRY )); then
-    dry "manifest.txt записан (дерево + sha256); latest -> $RUN_NAME"
+    dry "manifest.txt записан (sha256 бандла + tar -tzf); latest -> ${RUN_NAME}.tar.gz"
 else
-    (
-        cd "$RUN_DIR"
-        find . -type f | sort > manifest.txt
-        find . -type f ! -name manifest.txt -print0 | sort -z | xargs -0 -r sha256sum >> manifest.txt
-    )
-    if ln -sfn "$RUN_NAME" "$TOOL_ROOT/archives/latest" 2>/dev/null; then
-        ok "manifest.txt записан; latest -> $RUN_NAME"
+    {
+        sha256sum "$BUNDLE"
+        echo "--- содержимое бандла ---"
+        tar --ignore-zeros -tzf "$BUNDLE"
+    } > "$META/manifest.txt"
+    if ln -sfn "$RUN_NAME.tar.gz" "$TOOL_ROOT/archives/latest" 2>/dev/null; then
+        ok "manifest.txt записан; latest -> ${RUN_NAME}.tar.gz"
     else
-        echo "$RUN_NAME" > "$TOOL_ROOT/archives/latest.txt"
+        echo "$RUN_NAME.tar.gz" > "$TOOL_ROOT/archives/latest.txt"
         warn "manifest.txt записан; ФС SSD не поддерживает симлинки — прогон записан в latest.txt"
     fi
 fi
 
 echo
 if (( DRY )); then
-    ok "DRY-RUN завершён: ничего не записано. Планируемый архив: $RUN_DIR (~$(hM "$est"))"
+    ok "DRY-RUN завершён: ничего не записано. Планируемый бандл: $BUNDLE (~$(hM "$est"))"
     ok "Реальный прогон: bash pack.sh (без --dry-run)"
 else
-    ok "Готово! Архив: $RUN_DIR  ($(human "$RUN_DIR"))"
+    ok "Готово! Бандл: $BUNDLE  ($(human "$BUNDLE"))"
     ok "На CachyOS запусти: $TOOL_ROOT/unpack.sh"
 fi

@@ -32,9 +32,10 @@ bash pack-kitty.sh --dry-run # то же в отдельном окне kitty + 
 **На CachyOS (прямо с SSD):**
 ```bash
 bash /mnt/<ssd>/os-migrate-tool/unpack.sh              # интерактивно
-bash unpack.sh all                                     # все компоненты прогона
-bash unpack.sh --packages --appimages --dotfiles       # любые комбинации флагов
-bash unpack.sh --dry-run dotfiles.tar.gz               # отчёт без изменений
+bash unpack.sh all                                     # все сегменты бандла
+bash unpack.sh dotfiles extra                          # по именам сегментов
+bash unpack.sh --packages --appimages                  # то же с --
+bash unpack.sh --dry-run agents                        # отчёт без изменений
 ```
 
 > На FAT/exFAT/NTFS-SSD запускай через `bash pack.sh` — бита исполнения на таких ФС нет.
@@ -45,13 +46,17 @@ bash unpack.sh --dry-run dotfiles.tar.gz               # отчёт без из�
 os-migrate-tool/
 ├── lib.sh tui.py conf.py inventory.yaml selection.yaml pack.sh pack-kitty.sh unpack.sh mapping.tsv exclude.txt README.md SKILL.md  # самообновляются
 └── archives/
-    ├── 2026-11-09_ubuntu/      # прогон = дата_исходная-ОС
-    │   ├── manifest.txt        # дерево + sha256
-    │   ├── paths.tsv           # source -> archive -> dest для каждого пути
-    │   ├── packages/  appimages/
-    │   └── *.tar.gz
-    └── latest -> 2026-11-09_ubuntu   # или latest.txt, если ФС не умеет симлинки
+    ├── 2026-11-14_ubuntu.tar.gz    # ЕДИНЫЙ бандл прогона (внутри — сегменты
+    │   │                           #  packages/, appimages/, dotfiles/, data/,
+    │   │                           #  agents/, browsers/, flatpak/, …)
+    ├── 2026-11-14_ubuntu.meta/     # manifest.txt (sha256 бандла + дерево),
+    │   │                           # paths.tsv, missing-mapping.txt
+    └── latest -> 2026-11-14_ubuntu.tar.gz   # или latest.txt на FAT/exFAT
 ```
+
+Мульти-членный gzip: сегменты дописываются в бандл, чтение — всегда с
+`tar --ignore-zeros`. Выборочная распаковка прокручивает бандл (медленно),
+поэтому домашние сегменты извлекаются **одним проходом tar**.
 
 ## lib.sh + tui.py + conf.py — общий код и TUI-движок
 

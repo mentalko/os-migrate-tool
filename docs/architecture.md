@@ -145,20 +145,23 @@ lib.sh/pack.sh, голый bash, alt-screen `\e[?1049h`). ERR-trap возвра�
 
 ## unpack.sh — поток
 
-1. Аргументы: компоненты по одному (валидируются), `all`, либо интерактивный
-   чеклист. `--dry-run` отфильтровывается из аргументов.
-2. Выбор прогона (`archives/*/`), выбор компонентов (только существующие).
-3. `extract_tar`: конфликт = верхнеуровневые пути архива, уже существующие в
-   `$HOME` (`tar -tzf | sed 's:/.*::' | sort -u`); один вопрос на архив:
-   skip / backup (`*.bak-premigrate`) / overwrite.
-4. `packages`: сверка `apt-list.txt` с `mapping.tsv` — **точное** сравнение
+1. Выбор бандла (`archives/*.tar.gz`), список содержимого — 1 проход в tmp-файл.
+2. Компоненты: имена сегментов (`dotfiles`, `data`, …), аргументы валидируются
+   (ведущие `--` срезаются), `all` = сегменты, присутствующие в бандле.
+3. Конфликты — ДО распаковки, по кэшированному списку: верхнеуровневые пути
+   сегмента, уже существующие в `$HOME`; один вопрос на сегмент: skip / backup
+   (`*.bak-premigrate`) / overwrite.
+4. Распаковка — 2 прохода максимум: packages+appimages → `<run>.meta/`,
+   домашние сегменты → `$HOME` одним `tar --ignore-zeros -xzf --strip-components=1`.
+5. `packages`: сверка `apt-list.txt` с `mapping.tsv` — **точное** сравнение
    первого поля через awk (grep -E ломался на `+` в именах: g++, libstdc++6).
    `status=native|aur` → `eval install_cmd` из третьей колонки; пакеты вне
    маппинга → `missing-mapping.txt`, молча ничего не ставится. Flatpak: remote-add
    --if-not-exists flathub + установка списка. VS Code extensions, `dconf load`,
-   `crontab`, systemd-user units — по наличию файлов.
-5. Браузеры: предупреждение про старый keyring до распаковки.
-6. Отчёт: выбранные компоненты, paths.tsv (source → dest), missing-mapping.
+   `crontab` — по наличию файлов.
+6. Браузеры: предупреждение про старый keyring до распаковки; отказ → сегмент
+   вынимается из очереди извлечения.
+7. Отчёт: выбранные сегменты, paths.tsv (source → dest), missing-mapping.
 
 ## Формат mapping.tsv
 
