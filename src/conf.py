@@ -21,6 +21,11 @@ import re
 import shlex
 import sys
 
+try:
+    import tomllib                      # stdlib, python ≥ 3.11 — для mapping.toml
+except ModuleNotFoundError:
+    tomllib = None
+
 
 # ---------- мини-YAML ----------
 
@@ -132,6 +137,14 @@ def main() -> int:
         if len(sys.argv) > 3 and os.path.exists(sys.argv[3]):
             with open(sys.argv[3], encoding="utf-8") as f:
                 excl = parse_yaml(f.read())
+        mapping = {}
+        mapping_path = os.path.join(os.path.dirname(sys.argv[1]), "mapping.toml")
+        if os.path.exists(mapping_path) and tomllib is None:
+            sys.stderr.write("conf.py: mapping.toml требует python >= 3.11 (tomllib)\n")
+            return 2
+        if os.path.exists(mapping_path):
+            with open(mapping_path, "rb") as f:
+                mapping = tomllib.load(f)
     except (OSError, ValueError) as e:
         sys.stderr.write(f"conf.py: {e}\n")
         return 2
@@ -195,6 +208,22 @@ def main() -> int:
     # исключения (configs/exclude_dirs.yaml)
     arr("EXCL_PATTERNS_ARR", excl.get("tar", []) or [])
     out.append(f"APPIMG_SKIP_ZERO={1 if excl.get('appimages', {}).get('skip_zero_size', False) else 0}")
+
+    # маппинг пакетов (configs/mapping.toml)
+    m_status, m_cmd, m_url = {}, {}, {}
+    for pkg, spec in (mapping.get("packages") or {}).items():
+        st = str(spec.get("status", "skip"))
+        m_status[pkg] = st
+        cmd = spec.get("cachyos", "")
+        if st in ("native", "aur") and cmd:
+            m_cmd[pkg] = cmd
+        url = spec.get("url", "")
+        if url:
+            m_url[pkg] = url
+    assoc("MAPPING_STATUS", m_status)
+    assoc("MAPPING_CMD", m_cmd)
+    assoc("MAPPING_URL", m_url)
+    assoc("APPIMG_URL", {k: str(v.get("url", "")) for k, v in (mapping.get("appimages") or {}).items()})
 
     print("\n".join(out))
     return 0

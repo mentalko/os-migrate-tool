@@ -1,0 +1,259 @@
+# os-migrate-tool :: mapping.toml — маппинг пакетов Ubuntu → установка на CachyOS.
+#
+# [packages.<ubuntu-имя>]:
+#   status = "native"  — есть в репозиториях Arch; cachyos = команда установки
+#   status = "aur"     — через yay
+#   status = "manual"  — руками; url = страница/ссылка скачивания (unpack напечатает)
+#   status = "skip"    — не переносить
+# Нет записи → пакет не ставится, попадает в missing-mapping.txt.
+# unpack выполняет cachyos-команду ТОЛЬКО для native/aur; для manual/flatpak/
+# appimages он печатает названия и ссылки в конце (сам ниоткуда не качает).
+#
+# [appimages."<имя файла>"]: url — страница скачивания AppImage (для переустановки).
+
+
+[packages."7zip"]
+status = "native"
+cachyos = "sudo pacman -S 7zip"
+
+[packages."zsh"]
+status = "native"
+cachyos = "sudo pacman -S zsh"
+
+[packages."git"]
+status = "native"
+cachyos = "sudo pacman -S git"
+
+[packages."curl"]
+status = "native"
+cachyos = "sudo pacman -S curl"
+
+[packages."wget"]
+status = "native"
+cachyos = "sudo pacman -S wget"
+
+[packages."htop"]
+status = "native"
+cachyos = "sudo pacman -S htop"
+
+[packages."jq"]
+status = "native"
+cachyos = "sudo pacman -S jq"
+
+[packages."ncdu"]
+status = "native"
+cachyos = "sudo pacman -S ncdu"
+
+[packages."ripgrep"]
+status = "native"
+cachyos = "sudo pacman -S ripgrep"
+
+[packages."sqlite3"]
+status = "native"
+cachyos = "sudo pacman -S sqlite"
+
+[packages."nmap"]
+status = "native"
+cachyos = "sudo pacman -S nmap"
+
+[packages."net-tools"]
+status = "native"
+cachyos = "sudo pacman -S net-tools"
+
+[packages."openvpn"]
+status = "native"
+cachyos = "sudo pacman -S openvpn"
+
+[packages."p7zip-full"]
+status = "native"
+cachyos = "sudo pacman -S p7zip"
+
+[packages."unzip"]
+status = "native"
+cachyos = "sudo pacman -S unzip"
+
+[packages."zip"]
+status = "native"
+cachyos = "sudo pacman -S zip"
+
+[packages."ffmpeg"]
+status = "native"
+cachyos = "sudo pacman -S ffmpeg"
+
+[packages."adb"]
+status = "native"
+cachyos = "sudo pacman -S android-tools"
+
+[packages."fastboot"]
+status = "skip"
+note = "входит в android-tools"
+
+[packages."build-essential"]
+status = "native"
+cachyos = "sudo pacman -S base-devel"
+note = "gcc/make и пр."
+
+[packages."gdb"]
+status = "native"
+cachyos = "sudo pacman -S gdb"
+
+[packages."ghostscript"]
+status = "native"
+cachyos = "sudo pacman -S ghostscript"
+
+[packages."ninja-build"]
+status = "native"
+cachyos = "sudo pacman -S ninja"
+
+[packages."lshw"]
+status = "native"
+cachyos = "sudo pacman -S lshw"
+
+[packages."lvm2"]
+status = "native"
+cachyos = "sudo pacman -S lvm2"
+
+[packages."pigz"]
+status = "native"
+cachyos = "sudo pacman -S pigz"
+
+[packages."pv"]
+status = "native"
+cachyos = "sudo pacman -S pv"
+
+[packages."acl"]
+status = "skip"
+note = "входит в базу Arch"
+
+[packages."python-is-python3"]
+status = "native"
+cachyos = "sudo pacman -S python"
+
+[packages."pipx"]
+status = "native"
+cachyos = "sudo pacman -S python-pipx"
+
+[packages."docker-ce"]
+status = "native"
+cachyos = "sudo pacman -S docker docker-compose-plugin"
+note = "+ usermod -aG docker $USER"
+
+[packages."redis-server"]
+status = "native"
+cachyos = "sudo pacman -S redis"
+
+[packages."syncthing"]
+status = "native"
+cachyos = "sudo pacman -S syncthing"
+note = "+ systemctl --user enable syncthing"
+
+[packages."mariadb-server"]
+status = "native"
+cachyos = "sudo pacman -S mariadb"
+note = "mariadb-install-db --user=mysql перед первым стартом"
+
+[packages."aptitude"]
+status = "skip"
+note = "apt-специфика"
+
+[packages."colord"]
+status = "skip"
+note = "входит в рабочий стол"
+
+[packages."firefox"]
+status = "native"
+cachyos = "sudo pacman -S firefox"
+
+[packages."alacritty"]
+status = "native"
+cachyos = "sudo pacman -S alacritty"
+
+[packages."kitty"]
+status = "native"
+cachyos = "sudo pacman -S kitty"
+
+[packages."ghostty"]
+status = "native"
+cachyos = "sudo pacman -S ghostty"
+
+[packages."cool-retro-term"]
+status = "native"
+cachyos = "sudo pacman -S cool-retro-term"
+
+[packages."nautilus"]
+status = "native"
+cachyos = "sudo pacman -S nautilus"
+
+[packages."file-roller"]
+status = "native"
+cachyos = "sudo pacman -S file-roller"
+
+[packages."evince"]
+status = "native"
+cachyos = "sudo pacman -S evince"
+
+[packages."baobab"]
+status = "native"
+cachyos = "sudo pacman -S baobab"
+
+[packages."neofetch"]
+status = "native"
+cachyos = "sudo pacman -S neofetch"
+
+[packages."google-chrome-stable"]
+status = "aur"
+cachyos = "yay -S google-chrome-stable"
+
+[packages."warp-terminal"]
+status = "aur"
+cachyos = "yay -S warp-terminal"
+
+[packages."psensor"]
+status = "aur"
+cachyos = "yay -S psensor"
+
+[packages."localsend"]
+status = "aur"
+cachyos = "yay -S localsend-bin"
+
+[packages."nekoray"]
+status = "aur"
+cachyos = "yay -S nekoray"
+
+[packages."cherrystudio"]
+status = "aur"
+cachyos = "yay -S cherry-studio-bin"
+
+[packages."chatgpt"]
+status = "manual"
+note = "проверить AUR (chatgpt-desktop), иначе веб/AppImage"
+# url = "https://…"  ← добавить актуальную ссылку
+
+[packages."folo"]
+status = "manual"
+note = "проверить AUR, иначе вручную"
+# url = "https://…"  ← добавить актуальную ссылку
+
+[packages."droidcam-client"]
+status = "aur"
+cachyos = "yay -S droidcam"
+
+[packages."qoder"]
+status = "skip"
+note = "AppImage/с сайта"
+
+[packages."paseo"]
+status = "skip"
+note = "ставится вручную"
+
+[packages."genoffice"]
+status = "skip"
+note = "ставится вручную"
+
+[packages."open-whispr"]
+status = "skip"
+note = "ставится вручную"
+
+[packages."snapd"]
+status = "skip"
+note = "snap не переносится"

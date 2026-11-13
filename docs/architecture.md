@@ -27,7 +27,7 @@ pack.sh ──► SSD/os-migrate-tool/ ──► unpack.sh
 | `src/lib.sh` | Общий код: сообщения, dry-run, root-чек, ERR-trap, выбор TUI-движка |
 | `src/tui.py` | TUI на curses: TREE / MENU / CHECK |
 | `src/conf.py` | Мост конфига в bash: `eval "$(conf.py inv sel)"`; мини-YAML на stdlib |
-| `src/mapping.tsv` | Маппинг apt-пакетов → pacman/yay |
+| `src/mapping.toml` | Маппинг apt-пакетов → pacman/yay |
 | `configs/inventory.yaml` | Полный инвентарь: группы `group_*` с секциями + `desc:` |
 | `configs/selection.yaml` | Галочки по умолчанию: `group_<имя>.on` + вложенные пути |
 | `configs/exclude_dirs.yaml` | Исключения: `tar:` шаблоны (все сегменты) + `appimages.skip_zero_size` |
@@ -156,7 +156,7 @@ lib.sh/pack.sh, голый bash, alt-screen `\e[?1049h`). ERR-trap возвра�
    (`*.bak-premigrate`) / overwrite.
 4. Распаковка — 2 прохода максимум: packages+appimages → `<run>.meta/`,
    домашние сегменты → `$HOME` одним `tar --ignore-zeros -xzf --strip-components=1`.
-5. `packages`: сверка `apt-list.txt` с `mapping.tsv` — **точное** сравнение
+5. `packages`: сверка `apt-list.txt` с `mapping.toml` — **точное** сравнение
    первого поля через awk (grep -E ломался на `+` в именах: g++, libstdc++6).
    `status=native|aur` → `eval install_cmd` из третьей колонки; пакеты вне
    маппинга → `missing-mapping.txt`, молча ничего не ставится. Flatpak: remote-add
@@ -166,7 +166,7 @@ lib.sh/pack.sh, голый bash, alt-screen `\e[?1049h`). ERR-trap возвра�
    вынимается из очереди извлечения.
 7. Отчёт: выбранные сегменты, paths.tsv (source → dest), missing-mapping.
 
-## Формат mapping.tsv
+## Формат mapping.toml
 
 `ubuntu_pkg<TAB>status<TAB>install_cmd<TAB>notes`; статус ∈ {native, aur, skip,
 manual}; строки `#` и пустые пропускаются. Нет строки → пакет не ставится,

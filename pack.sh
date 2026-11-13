@@ -613,7 +613,7 @@ fi
 
 # ---------- 10. Самообновление инструмента на SSD ----------
 info "Синхронизация инструмента на SSD..."
-TOOL_FILES=(src/lib.sh src/tui.py src/conf.py src/mapping.tsv configs/exclude_dirs.yaml configs/inventory.yaml configs/selection.yaml skills/os-migrate-tool/SKILL.md pack.sh pack-kitty.sh unpack.sh README.md)
+TOOL_FILES=(src/lib.sh src/tui.py src/conf.py configs/mapping.toml configs/exclude_dirs.yaml configs/inventory.yaml configs/selection.yaml skills/os-migrate-tool/SKILL.md pack.sh pack-kitty.sh unpack.sh README.md)
 if (( DRY )); then
     dry "cp ${TOOL_FILES[*]} -> $TOOL_ROOT/"
 else

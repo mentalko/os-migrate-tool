@@ -9,7 +9,7 @@
 
 | Компонент | Источник (Ubuntu) | Приёмник (Cachy) |
 |---|---|---|
-| `packages` | списки apt/flatpak/VS Code/dconf/cron/systemd-user | переустановка через pacman/yay по `mapping.tsv` |
+| `packages` | списки apt/flatpak/VS Code/dconf/cron/systemd-user | переустановка через pacman/yay по `mapping.toml` |
 | `appimages` | `*.AppImage` из ~/Applications, ~/bin, ~/Desktop | → `~/Applications` |
 | `dotfiles` | ~/.config, ~/.ssh, ~/.gnupg, shell rc, шрифты, история | → $HOME |
 | `data` | не-скрытые каталоги home: ~/Documents, Downloads, Desktop, Pictures, ~/bin | → $HOME |
@@ -46,7 +46,7 @@ bash unpack.sh --dry-run agents                        # отчёт без из�
 ```
 os-migrate-tool/
 ├── pack.sh  pack-kitty.sh  unpack.sh   # скрипты
-├── src/                                # lib.sh, tui.py, conf.py, mapping.tsv, exclude.txt
+├── src/                                # lib.sh, tui.py, conf.py, mapping.toml, exclude.txt
 ├── configs/                            # inventory.yaml, selection.yaml, exclude_dirs.yaml
 ├── README.md                           # самообновляется
 ├── skills/os-migrate-tool/SKILL.md     # скилл для ИИ-агента (самообновляется)
@@ -99,15 +99,23 @@ group_extra:
 Не упомянутые подпункты наследуют `on:` группы; ручные галочки в чеклисте
 перекрывают всё. Подпункт с ON едет даже внутри выключенной группы.
 
-## mapping.tsv
+## mapping.toml
 
-`ubuntu_pkg<TAB>status<TAB>install_cmd<TAB>notes`
+`[packages.<ubuntu-имя>]` со статусом и командой установки на CachyOS:
+```toml
+[packages.zsh]
+status = "native"
+cachyos = "sudo pacman -S zsh"
 
-- `status = native` → есть в pacman-репо
-- `status = aur` → ставится через yay
-- `status = manual` → в репозиториях нет, ставится руками (AppImage/сайт)
-- `status = skip` → не переносится (snapd, ubuntu-*, ...)
-- Нет строки в мапинге → пакет **не ставится молча**, попадает в отчёт `missing-mapping.txt`
+[packages.chatgpt]
+status = "manual"
+# url = "https://…"   # unpack напечатает ссылку в конце
+```
+- `native` → pacman-репо, `aur` → yay, `manual` → руками (url в отчёте),
+  `skip` → не переносится
+- Нет записи → пакет **не ставится молча**, попадает в `missing-mapping.txt`
+- flatpak-приложения и appimages не ставятся скриптом: в конце печатается
+  список «название — ссылка» (flathub / url из mapping.toml)
 
 ## Требования
 

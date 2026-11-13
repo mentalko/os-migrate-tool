@@ -41,6 +41,11 @@ BUNDLE="$TOOL_DIR/archives/$pick.tar.gz"
 META="$TOOL_DIR/archives/$pick.meta"
 ok "Бандл: $BUNDLE ($(human "$BUNDLE"))"
 
+command -v python3 >/dev/null 2>&1 || die "нужен python3 (конфиг и TUI)"
+eval "$(python3 "$TOOL_DIR/src/conf.py" \
+    "$TOOL_DIR/configs/inventory.yaml" "$TOOL_DIR/configs/selection.yaml" \
+    "$TOOL_DIR/configs/exclude_dirs.yaml")"
+
 # ---------- 3. Список содержимого бандла (1 проход) ----------
 BUNDLE_LIST="$(mktemp /tmp/omt-bundle-list.XXXXXX)"
 info "Читаю содержимое бандла (один проход)..."
@@ -62,7 +67,7 @@ seg_conflicts() { # верхнеуровневые пути сегмента, у
 
 # ---------- 4. Компоненты ----------
 COMPONENTS=(
-  "packages;манифесты + установка по mapping.tsv"
+  "packages;манифесты + установка по mapping.toml"
   "appimages;копирование в ~/Applications"
   "dotfiles;конфиги, ssh, шрифты"
   "data;~/Documents, Downloads и пр."
@@ -173,32 +178,31 @@ fi
 for s in "${SEL[@]}"; do
     case "$s" in
         packages)
-            info "Сверка apt-list с mapping.tsv..."
-            installed=0; while IFS=$'\t' read -r pkg status _rest; do
-                [[ "$pkg" =~ ^# || -z "$pkg" ]] && continue
-                # точное совпадение первого поля (grep -E ломался на '+' в именах: g++, libstdc++6)
-                if ! awk -v p="$pkg" '$1==p{f=1} END{exit !f}' "$META/packages/apt-list.txt"; then continue; fi
-                case "$status" in
-                    skip) ok "  $pkg — skip (не переносится)";;
-                    native|aur)
-                        cmd=$(awk -F'\t' -v p="$pkg" '$1==p{print $3}' "$TOOL_DIR/src/mapping.tsv")
-                        [[ -n "$cmd" && "$cmd" != "-" ]] && { echo "  \$ $cmd"; (( DRY )) && { dry "$cmd — выполнено"; installed=$((installed+1)); } || { eval "$cmd" && installed=$((installed+1)) || warn "  $pkg — установка не удалась"; }; }
-                        ;;
-                esac
-            done < "$TOOL_DIR/src/mapping.tsv"
-            # что в apt-list, но нет в mapping
-            grep -vE "^#|^$" "$META/packages/apt-list.txt" | awk '{print $1}' | while read -r p; do
-                awk -F'\t' -v p="$p" '$1==p{f=1} END{exit !f}' "$TOOL_DIR/src/mapping.tsv" || echo "$p" >> "$MISSING.tmp"
-            done
-            [[ -f "$MISSING.tmp" ]] && { cat "$MISSING.tmp" >> "$MISSING"; rm "$MISSING.tmp"; }
-            # flatpak
-            if [[ -s "$META/packages/flatpak-list.txt" ]]; then
-                if (( ! DRY )); then
-                    flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo 2>/dev/null || true
-                fi
-                info "Flatpak-приложения:"
-                while read -r app; do [[ -n "$app" ]] || continue; if (( DRY )); then dry "flatpak install -y flathub $app"; else flatpak install -y flathub "$app" || warn "  flatpak $app — не установился"; fi; done < "$META/packages/flatpak-list.txt"
+            if (( DRY )); then
+                dry "packages: сверка apt-list с configs/mapping.toml + flatpak/vscode/dconf/cron"
+                continue
             fi
+            info "Сверка apt-list с configs/mapping.toml..."
+            installed=0
+            # точное совпадение первого поля через assoc (grep -E ломался на '+' в именах)
+            while IFS= read -r pkg; do
+                [[ -z "$pkg" ]] && continue
+                status="${MAPPING_STATUS[$pkg]:-}"
+                case "$status" in
+                    native|aur)
+                        cmd="${MAPPING_CMD[$pkg]:-}"
+                        [[ -n "$cmd" ]] && { echo "  \$ $cmd"; (( DRY )) && { dry "$cmd — выполнено"; installed=$((installed+1)); } || { eval "$cmd" && installed=$((installed+1)) || warn "  $pkg — установка не удалась"; }; }
+                        ;;
+                    skip) ok "  $pkg — skip (не переносится)";;
+                    manual) ok "  $pkg — manual (ссылка в конце отчёта)";;
+                esac
+            done < <(cut -f1 "$META/packages/apt-list.txt")
+            # что в apt-list, но нет в mapping
+            cut -f1 "$META/packages/apt-list.txt" | while read -r p; do
+                [[ -n "${MAPPING_STATUS[$p]:-}" ]] || echo "$p" >> "$MISSING.tmp"
+            done
+            [[ -f "$MISSING.tmp" ]] && { sort -u "$MISSING.tmp" >> "$MISSING"; rm "$MISSING.tmp"; }
+            # flatpak: НЕ ставим автоматически — печатаем ссылки (см. отчёт)
             # vscode extensions
             if [[ -s "$META/packages/code-extensions.txt" ]] && command -v code >/dev/null; then
                 info "VS Code расширения:"
@@ -238,6 +242,40 @@ if [[ -s "$META/paths.tsv" ]]; then
     info "Пути восстановления (из paths.tsv):"
     tail -n +2 "$META/paths.tsv" | awk -F'\t' '{printf "    %s -> %s\n", $4, $6}' | sort -u | head -40
 fi
-[[ -s "$MISSING" ]] && warn "Нет в mapping.tsv ($(wc -l < "$MISSING")):  $MISSING — установи вручную (pacman -Si / yay -Ss / AppImage)"
+[[ -s "$MISSING" ]] && warn "Нет в mapping.toml ($(wc -l < "$MISSING")):  $MISSING — установи вручную (pacman -Si / yay -Ss / AppImage)"
+
+# ---------- ссылки на скачивание (скрипт ниоткуда не качает сам) ----------
+LINKS=""
+FLATPAK_APPS=""
+if [[ -s "$META/packages/flatpak-list.txt" ]]; then
+    FLATPAK_APPS=$(cat "$META/packages/flatpak-list.txt")
+elif (( DRY )); then
+    FLATPAK_APPS=$(tar --ignore-zeros -xzOf "$BUNDLE" packages/flatpak-list.txt 2>/dev/null || true)
+fi
+if [[ -n "$FLATPAK_APPS" ]]; then
+    while read -r app; do
+        [[ -n "$app" ]] && LINKS+="flatpak: $app — https://flathub.org/apps/$app"$'\n'
+    done <<<"$FLATPAK_APPS"
+fi
+for pkg in "${!MAPPING_URL[@]}"; do
+    [[ ${MAPPING_STATUS[$pkg]:-} == manual ]] && LINKS+="пакет: $pkg — ${MAPPING_URL[$pkg]}"$'\n'
+done
+APPIMG_LIST=""
+if [[ -s "$META/appimages/list.txt" ]]; then
+    APPIMG_LIST=$(cat "$META/appimages/list.txt")
+elif (( DRY )); then
+    APPIMG_LIST=$(tar --ignore-zeros -xzOf "$BUNDLE" appimages/list.txt 2>/dev/null || true)
+fi
+if [[ -n "$APPIMG_LIST" ]]; then
+    while read -r f; do
+        [[ -n "$f" ]] || continue
+        b=$(basename "$f")
+        LINKS+="appimage: $b — ${APPIMG_URL[$b]:-ссылка не указана — добавь в configs/mapping.toml [appimages]}"$'\n'
+    done <<<"$APPIMG_LIST"
+fi
+if [[ -n "$LINKS" ]]; then
+    echo; ok "===== СКАЧАТЬ/УСТАНОВИТЬ ВРУЧНУЮ (ссылки) ====="
+    echo "$LINKS" | sed 's/^/  /'
+fi
 (( DRY )) && ok "Реальное восстановление: bash unpack.sh (без --dry-run)"
 ok "Готово."

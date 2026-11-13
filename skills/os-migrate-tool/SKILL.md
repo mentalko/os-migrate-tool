@@ -2,13 +2,13 @@
 name: os-migrate-tool
 description: >
   Интерактивный перенос системы Ubuntu → CachyOS (Arch) через внешний SSD:
-  пакеты (apt→pacman/yay по mapping.tsv), AppImages, dotfiles, не-скрытые
+  пакеты (apt→pacman/yay по mapping.toml), AppImages, dotfiles, не-скрытые
   каталоги home, сессии выбранных ИИ-агентов (по умолчанию zcode + opencode)
   и профили браузеров целиком. Пути и галочки — в inventory.yaml /
   selection.yaml. Использовать, когда пользователь просит «упаковать систему
   для переезда», «запаковать на SSD», «распаковать на Cachy», «миграция на
   cachy», «перенос на arch». Триггеры: os-migrate-tool, pack.sh, unpack.sh,
-  pack-kitty.sh, configs/inventory.yaml, configs/selection.yaml, mapping.tsv.
+  pack-kitty.sh, configs/inventory.yaml, configs/selection.yaml, mapping.toml.
 ---
 
 # os-migrate-tool
@@ -65,7 +65,7 @@ lib.sh. На FAT/exFAT/NTFS-SSD запускать `bash pack.sh` / `bash unpack
 резервного сегмента автоматически.
 
 Режимы:
-- `packages` — сверяет `packages/apt-list.txt` из бандла с `mapping.tsv`;
+- `packages` — сверяет `packages/apt-list.txt` из бандла с `configs/mapping.toml`;
   ставит через pacman/yay только записанное; не найденное → отчёт
   `missing-mapping.txt`, молча ничего не ставится.
 - `appimages` — копирует в `~/Applications`, `chmod +x`.
@@ -112,9 +112,11 @@ lib.sh. На FAT/exFAT/NTFS-SSD запускать `bash pack.sh` / `bash unpack
 
 ## Правила
 
-- `mapping.tsv` — единственный источник истины для установки пакетов.
-  Формат: `ubuntu_pkg<TAB>status<TAB>install_cmd<TAB>notes`;
-  status ∈ {native, aur, skip}. Нет строки → только в отчёт.
+- `configs/mapping.toml` — единственный источник истины для установки пакетов:
+  `[packages.<ubuntu-имя>]` со `status` (native/aur/manual/skip) и `cachyos`-
+  командой. Нет записи → только в отчёт. Для manual — заполни `url`.
+- flatpak/manual/appimages НЕ устанавливаются скриптом: unpack печатает названия
+  и ссылки в конце (flathub-страницы, url из mapping.toml) — ставь вручную.
 - Названия прогонов: `<дата>_<исходная-ос>.tar.gz` (+ `.meta/` рядом),
   берётся из /etc/os-release, чтобы бэкапы до/после переезда не смешались.
   Бандл — мульти-членный gzip: любое чтение только с `tar --ignore-zeros`.
