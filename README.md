@@ -103,11 +103,13 @@ group_extra:
 
 `[packages.<ubuntu-имя>]` со статусом и командой установки на CachyOS:
 ```toml
-[packages.zsh]
+[packages."zsh"]
+name = "zsh"
 status = "native"
 cachyos = "sudo pacman -S zsh"
 
-[packages.chatgpt]
+[packages."chatgpt"]
+name = "chatgpt"
 status = "manual"
 # url = "https://…"   # unpack напечатает ссылку в конце
 ```

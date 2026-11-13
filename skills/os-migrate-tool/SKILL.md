@@ -113,8 +113,8 @@ lib.sh. На FAT/exFAT/NTFS-SSD запускать `bash pack.sh` / `bash unpack
 ## Правила
 
 - `configs/mapping.toml` — единственный источник истины для установки пакетов:
-  `[packages.<ubuntu-имя>]` со `status` (native/aur/manual/skip) и `cachyos`-
-  командой. Нет записи → только в отчёт. Для manual — заполни `url`.
+  `[packages.<ubuntu-имя>]` с `name` (дубль имени), `status`
+  (native/aur/manual/skip) и `cachyos`-командой. Нет записи → только в отчёт. Для manual — заполни `url`.
 - flatpak/manual/appimages НЕ устанавливаются скриптом: unpack печатает названия
   и ссылки в конце (flathub-страницы, url из mapping.toml) — ставь вручную.
 - Названия прогонов: `<дата>_<исходная-ос>.tar.gz` (+ `.meta/` рядом),

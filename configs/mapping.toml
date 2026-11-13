@@ -1,6 +1,7 @@
 # os-migrate-tool :: mapping.toml — маппинг пакетов Ubuntu → установка на CachyOS.
 #
 # [packages.<ubuntu-имя>]:
+#   name = ubuntu-имя (дублируется внутри для читаемости/поиска)
 #   status = "native"  — есть в репозиториях Arch; cachyos = команда установки
 #   status = "aur"     — через yay
 #   status = "manual"  — руками; url = страница/ссылка скачивания (unpack напечатает)
@@ -13,247 +14,307 @@
 
 
 [packages."7zip"]
+name = "7zip"
 status = "native"
 cachyos = "sudo pacman -S 7zip"
 
 [packages."zsh"]
+name = "zsh"
 status = "native"
 cachyos = "sudo pacman -S zsh"
 
 [packages."git"]
+name = "git"
 status = "native"
 cachyos = "sudo pacman -S git"
 
 [packages."curl"]
+name = "curl"
 status = "native"
 cachyos = "sudo pacman -S curl"
 
 [packages."wget"]
+name = "wget"
 status = "native"
 cachyos = "sudo pacman -S wget"
 
 [packages."htop"]
+name = "htop"
 status = "native"
 cachyos = "sudo pacman -S htop"
 
 [packages."jq"]
+name = "jq"
 status = "native"
 cachyos = "sudo pacman -S jq"
 
 [packages."ncdu"]
+name = "ncdu"
 status = "native"
 cachyos = "sudo pacman -S ncdu"
 
 [packages."ripgrep"]
+name = "ripgrep"
 status = "native"
 cachyos = "sudo pacman -S ripgrep"
 
 [packages."sqlite3"]
+name = "sqlite3"
 status = "native"
 cachyos = "sudo pacman -S sqlite"
 
 [packages."nmap"]
+name = "nmap"
 status = "native"
 cachyos = "sudo pacman -S nmap"
 
 [packages."net-tools"]
+name = "net-tools"
 status = "native"
 cachyos = "sudo pacman -S net-tools"
 
 [packages."openvpn"]
+name = "openvpn"
 status = "native"
 cachyos = "sudo pacman -S openvpn"
 
 [packages."p7zip-full"]
+name = "p7zip-full"
 status = "native"
 cachyos = "sudo pacman -S p7zip"
 
 [packages."unzip"]
+name = "unzip"
 status = "native"
 cachyos = "sudo pacman -S unzip"
 
 [packages."zip"]
+name = "zip"
 status = "native"
 cachyos = "sudo pacman -S zip"
 
 [packages."ffmpeg"]
+name = "ffmpeg"
 status = "native"
 cachyos = "sudo pacman -S ffmpeg"
 
 [packages."adb"]
+name = "adb"
 status = "native"
 cachyos = "sudo pacman -S android-tools"
 
 [packages."fastboot"]
+name = "fastboot"
 status = "skip"
 note = "входит в android-tools"
 
 [packages."build-essential"]
+name = "build-essential"
 status = "native"
 cachyos = "sudo pacman -S base-devel"
 note = "gcc/make и пр."
 
 [packages."gdb"]
+name = "gdb"
 status = "native"
 cachyos = "sudo pacman -S gdb"
 
 [packages."ghostscript"]
+name = "ghostscript"
 status = "native"
 cachyos = "sudo pacman -S ghostscript"
 
 [packages."ninja-build"]
+name = "ninja-build"
 status = "native"
 cachyos = "sudo pacman -S ninja"
 
 [packages."lshw"]
+name = "lshw"
 status = "native"
 cachyos = "sudo pacman -S lshw"
 
 [packages."lvm2"]
+name = "lvm2"
 status = "native"
 cachyos = "sudo pacman -S lvm2"
 
 [packages."pigz"]
+name = "pigz"
 status = "native"
 cachyos = "sudo pacman -S pigz"
 
 [packages."pv"]
+name = "pv"
 status = "native"
 cachyos = "sudo pacman -S pv"
 
 [packages."acl"]
+name = "acl"
 status = "skip"
 note = "входит в базу Arch"
 
 [packages."python-is-python3"]
+name = "python-is-python3"
 status = "native"
 cachyos = "sudo pacman -S python"
 
 [packages."pipx"]
+name = "pipx"
 status = "native"
 cachyos = "sudo pacman -S python-pipx"
 
 [packages."docker-ce"]
+name = "docker-ce"
 status = "native"
 cachyos = "sudo pacman -S docker docker-compose-plugin"
 note = "+ usermod -aG docker $USER"
 
 [packages."redis-server"]
+name = "redis-server"
 status = "native"
 cachyos = "sudo pacman -S redis"
 
 [packages."syncthing"]
+name = "syncthing"
 status = "native"
 cachyos = "sudo pacman -S syncthing"
 note = "+ systemctl --user enable syncthing"
 
 [packages."mariadb-server"]
+name = "mariadb-server"
 status = "native"
 cachyos = "sudo pacman -S mariadb"
 note = "mariadb-install-db --user=mysql перед первым стартом"
 
 [packages."aptitude"]
+name = "aptitude"
 status = "skip"
 note = "apt-специфика"
 
 [packages."colord"]
+name = "colord"
 status = "skip"
 note = "входит в рабочий стол"
 
 [packages."firefox"]
+name = "firefox"
 status = "native"
 cachyos = "sudo pacman -S firefox"
 
 [packages."alacritty"]
+name = "alacritty"
 status = "native"
 cachyos = "sudo pacman -S alacritty"
 
 [packages."kitty"]
+name = "kitty"
 status = "native"
 cachyos = "sudo pacman -S kitty"
 
 [packages."ghostty"]
+name = "ghostty"
 status = "native"
 cachyos = "sudo pacman -S ghostty"
 
 [packages."cool-retro-term"]
+name = "cool-retro-term"
 status = "native"
 cachyos = "sudo pacman -S cool-retro-term"
 
 [packages."nautilus"]
+name = "nautilus"
 status = "native"
 cachyos = "sudo pacman -S nautilus"
 
 [packages."file-roller"]
+name = "file-roller"
 status = "native"
 cachyos = "sudo pacman -S file-roller"
 
 [packages."evince"]
+name = "evince"
 status = "native"
 cachyos = "sudo pacman -S evince"
 
 [packages."baobab"]
+name = "baobab"
 status = "native"
 cachyos = "sudo pacman -S baobab"
 
 [packages."neofetch"]
+name = "neofetch"
 status = "native"
 cachyos = "sudo pacman -S neofetch"
 
 [packages."google-chrome-stable"]
+name = "google-chrome-stable"
 status = "aur"
 cachyos = "yay -S google-chrome-stable"
 
 [packages."warp-terminal"]
+name = "warp-terminal"
 status = "aur"
 cachyos = "yay -S warp-terminal"
 
 [packages."psensor"]
+name = "psensor"
 status = "aur"
 cachyos = "yay -S psensor"
 
 [packages."localsend"]
+name = "localsend"
 status = "aur"
 cachyos = "yay -S localsend-bin"
 
 [packages."nekoray"]
+name = "nekoray"
 status = "aur"
 cachyos = "yay -S nekoray"
 
 [packages."cherrystudio"]
+name = "cherrystudio"
 status = "aur"
 cachyos = "yay -S cherry-studio-bin"
 
 [packages."chatgpt"]
+name = "chatgpt"
 status = "manual"
 note = "проверить AUR (chatgpt-desktop), иначе веб/AppImage"
 # url = "https://…"  ← добавить актуальную ссылку
 
 [packages."folo"]
+name = "folo"
 status = "manual"
 note = "проверить AUR, иначе вручную"
 # url = "https://…"  ← добавить актуальную ссылку
 
 [packages."droidcam-client"]
+name = "droidcam-client"
 status = "aur"
 cachyos = "yay -S droidcam"
 
 [packages."qoder"]
+name = "qoder"
 status = "skip"
 note = "AppImage/с сайта"
 
 [packages."paseo"]
+name = "paseo"
 status = "skip"
 note = "ставится вручную"
 
 [packages."genoffice"]
+name = "genoffice"
 status = "skip"
 note = "ставится вручную"
 
 [packages."open-whispr"]
+name = "open-whispr"
 status = "skip"
 note = "ставится вручную"
 
 [packages."snapd"]
+name = "snapd"
 status = "skip"
 note = "snap не переносится"

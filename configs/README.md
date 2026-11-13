@@ -21,7 +21,7 @@ python ≥ 3.11). Комментарии: целые строки + инлайн
 пустые AppImage не переносятся (условие, не по имени).
 
 ## mapping.toml — пакеты Ubuntu → установка на CachyOS
-`[packages.<имя>]`: `status` = native (репозитории) / aur (yay) / manual / skip;
+`[packages.<имя>]`: `name` = дубль имени; `status` = native / aur / manual / skip;
 `cachyos` — команда установки (выполняется unpack'ом только для native/aur);
 `url` — страница скачивания для manual. Нет записи → пакет не ставится, попадает
 в missing-mapping.txt. `[appimages."<файл>"]` → `url` — ссылка на скачивание.
