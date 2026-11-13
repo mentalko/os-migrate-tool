@@ -588,6 +588,11 @@ write_paths() {
 if (( ! DRY )); then
     write_paths > "$META/paths.tsv"
     ok "paths.tsv записан ($(($(wc -l < "$META/paths.tsv")-1)) путей) — что, откуда и куда"
+    # резерв meta внутри бандла: если .meta/ на диске потеряется — paths.tsv
+    # восстанавливается распаковкой сегмента meta/ (manifest с sha внутрь не
+    # положить — рекурсия, он только снаружи)
+    ( cd "$META" && tar -cz --transform "s,^,meta/," paths.tsv .exclude-dedup ) >> "$BUNDLE"
+    ok "meta/ — paths.tsv дублирован в бандл"
 fi
 
 # ---------- 10. Самообновление инструмента на SSD ----------

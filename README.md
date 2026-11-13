@@ -48,9 +48,12 @@ os-migrate-tool/
 └── archives/
     ├── 2026-11-14_ubuntu.tar.gz    # ЕДИНЫЙ бандл прогона (внутри — сегменты
     │   │                           #  packages/, appimages/, dotfiles/, data/,
-    │   │                           #  agents/, browsers/, flatpak/, …)
+    │   │                           #  agents/, browsers/, flatpak/, … + meta/
+    │   │                           #  с резервом paths.tsv)
     ├── 2026-11-14_ubuntu.meta/     # manifest.txt (sha256 бандла + дерево),
     │   │                           # paths.tsv, missing-mapping.txt
+    │   │                           # (потеряется — paths.tsv восстановится
+    │   │                           #  из бандла автоматически)
     └── latest -> 2026-11-14_ubuntu.tar.gz   # или latest.txt на FAT/exFAT
 ```
 

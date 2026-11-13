@@ -48,6 +48,13 @@ tar --ignore-zeros -tzf "$BUNDLE" > "$BUNDLE_LIST"
 ok "сегментов: $(cut -d/ -f1 "$BUNDLE_LIST" | sort -u | wc -l), членов: $(wc -l < "$BUNDLE_LIST")"
 
 seg_in_bundle() { grep -q "^$1/" "$BUNDLE_LIST"; }
+
+# .meta/ потерян на диске — восстанавливаем paths.tsv из резервного сегмента
+if [[ ! -s "$META/paths.tsv" ]] && grep -q "^meta/paths.tsv" "$BUNDLE_LIST"; then
+    mkdir -p "$META"
+    tar --ignore-zeros -xzf "$BUNDLE" -C "$META" meta
+    ok "paths.tsv восстановлен из бандла (.meta/ отсутствовал на диске)"
+fi
 seg_conflicts() { # верхнеуровневые пути сегмента, уже существующие в $HOME
     grep "^$1/" "$BUNDLE_LIST" | sed "s|^$1/||; s|/.*||" | sort -u | \
         while IFS= read -r t; do [[ -n "$t" && -e "$HOME/$t" ]] && echo "$t"; done || true
