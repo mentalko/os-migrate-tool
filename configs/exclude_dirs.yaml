@@ -1,11 +1,13 @@
 # os-migrate-tool :: exclude_dirs.yaml — что НЕ пакуем и почему.
 # tar: шаблоны --exclude-from, применяются ко ВСЕМ сегментам бандла.
-# ВАЖНО: без хвостового '/' — tar матчит имя каталога без слэша
-# ("*/node_modules" работает, "*/node_modules/" — нет).
+# Шаблоны: без хвостового '/' (tar матчит имя каталога без слэша); имя без '/'
+# матчится как БАЗОВОЕ ИМЯ на любой глубине (Cache режет Cache везде).
+# appimages: правила сканирования *.AppImage.
 
 tar:
   # --- кэши и пересоздаваемое ---
   - .cache                    # кэш программ, пересоздаётся сам
+  - cache                     # flatpak/прочие: каталог 'cache' в любом месте
   - .thumbnails               # миниатюры файлов, генерируются заново
   - .local/share/Trash        # корзина — мусор по определению
   # --- зависимости и артефакты сборки (восстанавливаются из манифестов) ---
@@ -17,27 +19,31 @@ tar:
   - "*/target"                # артефакты сборки Rust: cargo build пересоберёт
   - "*/dist"                  # артефакты сборки JS/пакетов
   - "*.pyc"                   # байткод python
-  # --- логи, дампы, кэши конкретных программ ---
+  # --- кэши Chromium/Electron по имени каталога (Chrome, Code, edge, flatpak) ---
+  - Cache                     # HTTP-кэш
+  - "Code Cache"              # кэш кода V8
+  - GPUCache                  # GPU-кэш
+  - GPUPersistentCache        # GPU-кэш (персистентный)
+  - GraphiteDawnCache         # GPU-растеризация Chrome
+  - GrShaderCache             # кэш шейдеров
+  - ShaderCache               # кэш шейдеров
+  - CachedData                # Electron: кэш кода
+  - CachedConfigurations      # Electron: кэш конфигураций
+  - CachedProfilesData        # VS Code: кэш профилей
+  - CachedExtensionVSIXs      # VS Code: скачанные VSIX-расширения
+  - Service Worker            # Chromium: CacheStorage сервис-воркеров
+  - "Safe Browsing"           # Chrome: базы Safe Browsing
+  - optimization_guide_model_store  # Chrome: ML-модели
+  - WasmTtsEngine             # Chrome: TTS-модели
+  - extensions_crx_cache      # Chrome: кэш crx-загрузок
+  - component_crx_cache       # Chrome/Edge: кэш компонентов
+  # --- логи и дампы (регенерируемые) ---
+  - logs                      # каталоги журналов приложений
+  - log                       # журналы (ед. число)
+  - Crashpad                  # крэш-дампы Chromium
+  - Crashes                   # крэш-дампы (flatpak-приложения)
+  # --- кэши/данные конкретных программ ---
   - .zcode/v2/visualizations  # визуализации ZCode — генерируются на лету
-  - .zcode/cli/plugins/cache  # кэш плагинов ZCode — перекачивается
-  - .zcode/cli/log            # логи ZCode
-  - .zcode/cli/crash          # крэш-дампы ZCode
-  - .zcode/tmp                # временные файлы ZCode
-  - .local/share/opencode/log # логи opencode
-  # --- кэши браузеров/IDE (восстанавливаются сами) ---
-  - .config/Code/CachedExtensionVSIXs       # скачанные VSIX, докачаются
-  - .config/google-chrome/extensions_crx_cache
-  - .config/google-chrome/component_crx_cache
-  - .config/google-chrome/optimization_guide_model_store
-  - .config/google-chrome/WasmTtsEngine
-  - .config/google-chrome/Safe Browsing
-  - .config/google-chrome/GrShaderCache
-  - .config/google-chrome/Default/Service Worker
-  - .config/google-chrome/Default/GPUCache
-  - .config/microsoft-edge/Default/Service Worker
-  - .config/microsoft-edge/Default/GPUCache
-  - .var/app/*/cache          # flatpak-кэши (каталог 'cache' без точки)
-  - .zcode/v2/logs            # логи ZCode v2
   - ".local/share/Throne/config/core*"   # core-дамп Throne (192M)
   # --- старьё ---
   - ".local/bin/agy.*.old"    # старые копии бинарника
