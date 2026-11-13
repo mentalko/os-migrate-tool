@@ -14,4 +14,8 @@
 # Тяжёлое и невоспроизводимое
 .zcode/v2/visualizations/
 .zcode/cli/plugins/cache/
+.zcode/cli/log/
+.zcode/cli/crash/
+.zcode/tmp/
+.local/share/opencode/log/
 .local/share/Steam/

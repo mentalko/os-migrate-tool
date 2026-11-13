@@ -54,7 +54,7 @@ source "$CONF"
 : "${APPIMG_DIRS:=}" "${DOT_DIRS:=}" "${DOT_FILES:=}" "${AGENT_DIRS:=}" \
   "${AGENT_CONFIG_DIRS:=}" "${BROWSER_DIRS:=}" "${DATA_DIRS:=}" "${TMP_DIRS:=}" \
   "${EXTRA_DIRS:=}" "${AGENT_SESSIONS_DIRS:=}" "${CHECKBOX_GROUPS_OFF:=}" \
-  "${CHECKBOX_SUBS_OFF:=}" "${DESC_MAP:=}" "${COMPRESS_ESTIMATE:=55}"
+  "${CHECKBOX_SUBS_OFF:=}" "${CHECKBOX_SUBS_ON:=}" "${DESC_MAP:=}" "${COMPRESS_ESTIMATE:=55}"
 
 IFS=':' read -ra APPIMG_ARR     <<<"$APPIMG_DIRS"
 IFS=':' read -ra DOT_DIRS_ARR   <<<"$DOT_DIRS"
@@ -195,7 +195,8 @@ GRP_DESC[toolchain]="тулчейны: rustup/nvm/bun/npm/vscode";   GRP_SIZE[to
 GRP_DESC[tmp]="пересоздаваемые данные (/tmp и т.п.)";        GRP_SIZE[tmp]=0
 GRP_DESC[extra]="дополнительные пути из migrate.conf";       GRP_SIZE[extra]=0
 
-# ---------- дефолты чекбоксов: из migrate.conf (CHECKBOX_GROUPS_OFF / CHECKBOX_SUBS_OFF) ----------
+# ---------- дефолты чекбоксов: из migrate.conf (CHECKBOX_GROUPS_OFF / CHECKBOX_SUBS_*) ----------
+# Элементы CHECKBOX_SUBS_* разделены ЗАПЯТОЙ: ключи содержат ':' ("agents|agent:.qoder").
 declare -A SUB_STATE GRP_DEFAULT_OFF
 IFS=':' read -ra _cb_groups_off <<<"$CHECKBOX_GROUPS_OFF"
 for g in "${_cb_groups_off[@]}"; do [[ -n "$g" ]] && GRP_DEFAULT_OFF[$g]=1; done
@@ -206,9 +207,13 @@ for k in "${!SUBS[@]}"; do
     g="${k%%|*}"
     if [[ ${GRP_DEFAULT_OFF[$g]:-} ]]; then SUB_STATE[$k]=OFF; else SUB_STATE[$k]=ON; fi
 done
-IFS=':' read -ra _cb_subs_off <<<"$CHECKBOX_SUBS_OFF"
+IFS=',' read -ra _cb_subs_off <<<"$CHECKBOX_SUBS_OFF"
 for k in "${_cb_subs_off[@]}"; do
     [[ -n "$k" && -n "${SUBS[$k]:-}" ]] && SUB_STATE[$k]=OFF
+done
+IFS=',' read -ra _cb_subs_on <<<"$CHECKBOX_SUBS_ON"
+for k in "${_cb_subs_on[@]}"; do
+    [[ -n "$k" && -n "${SUBS[$k]:-}" ]] && SUB_STATE[$k]=ON    # ON внутри OFF-группы тоже можно
 done
 
 # ---------- 5. TUI: группы с разворотом подпунктов на месте ----------
