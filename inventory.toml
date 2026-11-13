@@ -1,0 +1,99 @@
+# os-migrate-tool :: inventory.toml — ПОЛНЫЙ инвентарь путей для сканирования.
+# Что реально едет — решает selection.toml (галочки по умолчанию) и ручные
+# галочки в чеклисте pack.sh. Пути относительные от $HOME; ведущие "~/" и
+# "$HOME/" разворачивает conf.py. Парсинг — tomllib (stdlib python 3.11+).
+
+[meta]
+compress_estimate = 55   # оценка сжатия tar.gz в % от исходника
+
+[appimages]              # сканирование *.AppImage (find -maxdepth 1)
+dirs = ["~/Applications", "~/bin", "~/Desktop"]
+
+[dotfiles]               # группа dotfiles: каталоги и отдельные файлы home
+dirs  = [".config", ".ssh", ".gnupg", ".local/share/fonts", ".local/bin", ".local/share/applications"]
+files = [".zshrc", ".bashrc", ".profile", ".gitconfig", ".gitignore_global", ".bash_history", ".zsh_history"]
+
+[agents]                 # группа agents: данные ИИ-агентов
+home     = [".qoder", ".codex", ".claude", ".agents", ".jcode", ".gemini", ".minimax-code", ".opencode", ".kilo", ".pi-bolt", ".kimi-code", ".zcode", ".warp", ".paseo"]
+config   = [".config/Qoder", ".config/com.qoder.app.stable", ".config/Codex", ".config/cursor", ".config/Cursor", ".config/ZCode", ".config/opencode", ".config/CherryStudio", ".config/warp-terminal"]
+sessions = [".local/share/opencode"]   # сессии opencode (opencode.db); сессии zcode — внутри ~/.zcode
+# ~/.opencode — установка CLI (bin/node_modules), не сессии: на Arch переустановить.
+
+[browsers]               # профили целиком
+paths = [".config/google-chrome", ".config/BraveSoftware", ".config/chromium", ".mozilla"]
+
+[data]                   # не-скрытые каталоги home
+paths = ["Documents", "Downloads", "Desktop", "Pictures", "bin"]
+
+[toolchain]              # тяжёлое, обычно переустанавливают
+paths = [".rustup", ".nvm", ".bun", ".npm", ".vscode", ".minimax-code/lib"]
+
+[flatpak]                # данные flatpak-приложений
+paths = [".var"]
+
+[tmp]                    # пересоздаваемое; пусто — группа не появляется
+paths = []
+
+[extra]                  # прочее
+paths = ["paperless-ngx", "Sync", "v2rayN"]
+
+# --- Описания пунктов чеклиста: ключ = путь (для AppImage — имя файла) ---
+[desc]
+".config" = "конфиги всех GUI/CLI-программ (агентские — отдельно)"
+".ssh" = "SSH-ключи, known_hosts, конфиги подключений"
+".gnupg" = "GPG-ключи и доверие"
+".local/share/fonts" = "установленные шрифты"
+".local/bin" = "личные скрипты и бинарники"
+".local/share/applications" = "свои .desktop-лаунчеры"
+".zshrc" = "конфиг zsh"
+".bashrc" = "конфиг bash"
+".profile" = "переменные окружения при входе"
+".gitconfig" = "глобальный конфиг git"
+".gitignore_global" = "глобальный gitignore"
+".bash_history" = "история команд bash"
+".zsh_history" = "история команд zsh"
+".qoder" = "Qoder (IDE-агент): проекты, сессии, knowledge"
+".codex" = "Codex CLI: сессии, agent_sessions, конфиги"
+".claude" = "Claude Code: проекты и сессии"
+".agents" = "общие скиллы агентов (skills/)"
+".jcode" = "JCode CLI: скиллы, конфиги"
+".gemini" = "Gemini CLI: сессии, история"
+".minimax-code" = "MiniMax-агент: данные и кэш"
+".opencode" = "OpenCode CLI: установка (bin/node_modules) — не сессии"
+".kilo" = "Kilo Code: конфиги"
+".pi-bolt" = "pi/bolt-агент: данные"
+".kimi-code" = "Kimi Code CLI: сессии"
+".zcode" = "ZCode: сессии, конфиги (внимание: credentials.json!)"
+".warp" = "Warp Terminal: данные"
+".paseo" = "Paseo: данные"
+".local/share/opencode" = "OpenCode: сессии (opencode.db), auth, snapshot"
+".config/Qoder" = "Qoder GUI: настройки"
+".config/com.qoder.app.stable" = "Qoder GUI (stable): данные приложения"
+".config/Codex" = "Codex: конфиги"
+".config/cursor" = "Cursor CLI: данные"
+".config/Cursor" = "Cursor IDE: настройки и расширения"
+".config/ZCode" = "ZCode: данные приложения"
+".config/opencode" = "OpenCode: конфиги и скиллы"
+".config/CherryStudio" = "CherryStudio: чаты, провайдеры, скиллы"
+".config/warp-terminal" = "Warp Terminal: настройки"
+".config/google-chrome" = "Chrome: профиль, пароли, расширения"
+".config/BraveSoftware" = "Brave: профиль, пароли, расширения"
+".config/chromium" = "Chromium: профиль"
+".mozilla" = "Firefox: профиль, закладки, пароли"
+"Documents" = "проекты и рабочие документы"
+"Downloads" = "загрузки"
+"Desktop" = "рабочий стол (лаунчеры)"
+"Pictures" = "изображения"
+"bin" = "личные скрипты и утилиты (~/bin)"
+".rustup" = "Rust: rustup и тулчейны (rustc/cargo)"
+".nvm" = "Node.js: версии через nvm"
+".bun" = "Bun: рантайм и кэш"
+".npm" = "npm: кэш и глобальные пакеты"
+".vscode" = "VS Code: расширения и данные"
+".minimax-code/lib" = "MiniMax: библиотеки"
+".var" = "flatpak-приложения: профили (zen-браузер, obsidian)"
+"paperless-ngx" = "Paperless-ngx: локальные документы"
+"Sync" = "Syncthing: синхронизируемые данные"
+"v2rayN" = "v2rayN: конфиги прокси"
+"Pen-linux-x86_64.AppImage" = "Pen: рисование/заметки стилусом"
+"ZCode.AppImage" = "ZCode: ИИ-агент (файл битый, 0 байт)"

@@ -45,46 +45,19 @@ touch "$SSD/.omt-write-test" 2>/dev/null && rm -f "$SSD/.omt-write-test" \
     || die "диск $SSD не доступен на запись (ro-маунт?)"
 ok "SSD: $SSD (свободно $(df -h --output=avail "$SSD" | tail -1))"
 
-# ---------- 3. Конфиг путей ----------
-# Списки в migrate.conf разделены ':' — пути могут содержать пробелы.
-CONF="$TOOL_DIR/migrate.conf"
-[[ -f "$CONF" ]] || die "нет конфига путей: $CONF (см. migrate.conf в репозитории)"
-# shellcheck disable=SC1090
-source "$CONF"
-: "${APPIMG_DIRS:=}" "${DOT_DIRS:=}" "${DOT_FILES:=}" "${AGENT_DIRS:=}" \
-  "${AGENT_CONFIG_DIRS:=}" "${BROWSER_DIRS:=}" "${DATA_DIRS:=}" "${TMP_DIRS:=}" \
-  "${EXTRA_DIRS:=}" "${AGENT_SESSIONS_DIRS:=}" "${CHECKBOX_GROUPS_OFF:=}" \
-  "${CHECKBOX_SUBS_OFF:=}" "${CHECKBOX_SUBS_ON:=}" "${DESC_MAP:=}" "${COMPRESS_ESTIMATE:=55}"
-
-IFS=':' read -ra APPIMG_ARR     <<<"$APPIMG_DIRS"
-IFS=':' read -ra DOT_DIRS_ARR   <<<"$DOT_DIRS"
-IFS=':' read -ra DOT_FILES_ARR  <<<"$DOT_FILES"
-IFS=':' read -ra AGENT_DIRS_ARR <<<"$AGENT_DIRS"
-IFS=':' read -ra AGENT_CONF_ARR <<<"$AGENT_CONFIG_DIRS"
-IFS=':' read -ra BROWSER_ARR    <<<"$BROWSER_DIRS"
-IFS=':' read -ra DATA_ARR       <<<"$DATA_DIRS"
-IFS=':' read -ra TMP_ARR        <<<"$TMP_DIRS"
-IFS=':' read -ra EXTRA_ARR      <<<"$EXTRA_DIRS"
-IFS=':' read -ra TOOLCHAIN_ARR  <<<"${TOOLCHAIN_DIRS:-}"
-IFS=':' read -ra FLATPAK_ARR    <<<"${FLATPAK_DATA_DIRS:-}"
-DOT_ARR=("${DOT_DIRS_ARR[@]}" "${DOT_FILES_ARR[@]}")
+# ---------- 3. Конфиг: inventory.toml (инвентарь) + selection.toml (галочки) ----------
+# Парсинг на python (tomllib — stdlib): conf.py печатает bash-код, eval применяет.
+command -v python3 >/dev/null 2>&1 || die "нужен python3 — на нём парсинг конфига и TUI"
+[[ -f "$TOOL_DIR/inventory.toml" && -f "$TOOL_DIR/selection.toml" ]] \
+    || die "нет конфига: inventory.toml / selection.toml рядом с pack.sh"
+CONF_OUT="$(python3 "$TOOL_DIR/conf.py" "$TOOL_DIR/inventory.toml" "$TOOL_DIR/selection.toml")" \
+    || die "ошибка конфига: см. сообщение выше"
+eval "$CONF_OUT"
+: "${COMPRESS_ESTIMATE:=55}"
 
 arr_nonempty() { local e; for e in "$@"; do [[ -n "$e" ]] && return 0; done; return 1; }
 
-# сессии: отдельная переменная (актуализируется агентом на новой системе);
-# добавляем только пути, не покрытые родительскими каталогами из AGENT_*
-AGENT_SESSIONS_ARR=()
-IFS=':' read -ra _sess_raw <<<"${AGENT_SESSIONS_DIRS}"
-for sp in "${_sess_raw[@]}"; do
-    [[ -n "$sp" ]] || continue
-    covered=0
-    for ap in "${AGENT_DIRS_ARR[@]}" "${AGENT_CONF_ARR[@]}"; do
-        [[ "$sp" == "$ap"/* || "$sp" == "$ap" ]] && covered=1
-    done
-    (( covered )) || AGENT_SESSIONS_ARR+=("$sp")
-done
-
-# AppImage: поиск по абсолютным путям из конфига (без eval)
+# AppImage: поиск по абсолютным путям из инвентаря (без eval)
 APPS_FIND=""
 for d in "${APPIMG_ARR[@]}"; do
     [[ -n "$d" && -d "$d" ]] || continue
@@ -95,15 +68,7 @@ done
 hM() { awk -v m="$1" 'BEGIN{ if (m>=1024) printf "%.1fG", m/1024; else printf "%dM", m }'; }
 m_of() { local p="$1"; [[ "$p" == /* ]] || p="$HOME/$p"; du -sm --apparent-size "$p" 2>/dev/null | cut -f1; }
 
-# описания пунктов из migrate.conf (DESC_MAP: "путь|описание")
-declare -A DESC
-while IFS= read -r line; do
-    [[ -z "$line" || "$line" == \#* || "$line" == *'|'* ]] || continue
-    k="${line%%|*}"
-    [[ -n "$k" ]] || continue
-    DESC["$k"]="${line#*|}"
-done <<<"$DESC_MAP"
-desc_of() { # $1=ключ (путь или имя AppImage), $2=fallback
+desc_of() { # описание из inventory.toml [desc]; $1=ключ (путь/имя AppImage), $2=fallback
     local d="${DESC[$1]:-}"
     [[ -n "$d" ]] && { echo "$d"; return 0; }
     echo "$2"
@@ -148,7 +113,7 @@ for p in "${AGENT_CONF_ARR[@]}"; do
     [[ -n "$p" && -e "$HOME/$p" ]] && add_sub agents "agent:$p" "$(desc_of "$p" "агент-конфиг: $p")" "$(m_of "$HOME/$p")" "~/$p" "$p"
 done
 for p in "${AGENT_SESSIONS_ARR[@]}"; do
-    [[ -n "$p" && -e "$HOME/$p" ]] && add_sub agents "agent:$p" "$(desc_of "$p" "сессии: $p")" "$(m_of "$HOME/$p")" "~/$p — сессии (AGENT_SESSIONS_DIRS)" "$p"
+    [[ -n "$p" && -e "$HOME/$p" ]] && add_sub agents "agent:$p" "$(desc_of "$p" "сессии: $p")" "$(m_of "$HOME/$p")" "~/$p — сессии (agents.sessions)" "$p"
 done
 GRP_HAS_SUB[browsers]=1
 for p in "${BROWSER_ARR[@]}"; do
@@ -193,27 +158,21 @@ GRP_DESC[data]="данные: ~/Documents и т.п.";                 GRP_SIZE[d
 GRP_DESC[flatpak]="данные flatpak-приложений (.var)";        GRP_SIZE[flatpak]=0
 GRP_DESC[toolchain]="тулчейны: rustup/nvm/bun/npm/vscode";   GRP_SIZE[toolchain]=0
 GRP_DESC[tmp]="пересоздаваемые данные (/tmp и т.п.)";        GRP_SIZE[tmp]=0
-GRP_DESC[extra]="дополнительные пути из migrate.conf";       GRP_SIZE[extra]=0
+GRP_DESC[extra]="дополнительные пути из inventory.toml";       GRP_SIZE[extra]=0
 
-# ---------- дефолты чекбоксов: из migrate.conf (CHECKBOX_GROUPS_OFF / CHECKBOX_SUBS_*) ----------
-# Элементы CHECKBOX_SUBS_* разделены ЗАПЯТОЙ: ключи содержат ':' ("agents|agent:.qoder").
-declare -A SUB_STATE GRP_DEFAULT_OFF
-IFS=':' read -ra _cb_groups_off <<<"$CHECKBOX_GROUPS_OFF"
-for g in "${_cb_groups_off[@]}"; do [[ -n "$g" ]] && GRP_DEFAULT_OFF[$g]=1; done
-for g in "${MG_GROUPS[@]}"; do
-    if [[ ${GRP_DEFAULT_OFF[$g]:-} ]]; then GRP_STATE[$g]=OFF; else GRP_STATE[$g]=ON; fi
+# ---------- дефолты чекбоксов: selection.toml (раскладка conf.py) ----------
+# Группа -> её подпункты; точечные [группа]"путь" переопределяют (ON/OFF).
+declare -A SUB_STATE
+for g in "${MG_GROUPS[@]}"; do GRP_STATE[$g]="${TUI_GRP_STATE[$g]:-ON}"; done
+for k in "${!SUBS[@]}"; do
+    g="${k%%|*}"
+    SUB_STATE[$k]="${TUI_GRP_STATE[$g]:-ON}"
 done
 for k in "${!SUBS[@]}"; do
     g="${k%%|*}"
-    if [[ ${GRP_DEFAULT_OFF[$g]:-} ]]; then SUB_STATE[$k]=OFF; else SUB_STATE[$k]=ON; fi
-done
-IFS=',' read -ra _cb_subs_off <<<"$CHECKBOX_SUBS_OFF"
-for k in "${_cb_subs_off[@]}"; do
-    [[ -n "$k" && -n "${SUBS[$k]:-}" ]] && SUB_STATE[$k]=OFF
-done
-IFS=',' read -ra _cb_subs_on <<<"$CHECKBOX_SUBS_ON"
-for k in "${_cb_subs_on[@]}"; do
-    [[ -n "$k" && -n "${SUBS[$k]:-}" ]] && SUB_STATE[$k]=ON    # ON внутри OFF-группы тоже можно
+    IFS=';' read -r _ _ _ p <<<"${SUBS[$k]}"
+    st="${TUI_SEL[${g}|${p}]:-${TUI_SEL[${g}|$(basename "$p")]:-}}"
+    [[ -n "$st" ]] && SUB_STATE[$k]="$st"
 done
 
 # ---------- 5. TUI: группы с разворотом подпунктов на месте ----------
@@ -440,8 +399,9 @@ for g in "${MG_GROUPS[@]}"; do [[ ${GRP_STATE[$g]} == ON ]] && chosen=$((chosen+
 declare -A SIZE_M GRP_SIZE_PLAN GRP_SEL   # GRP_SEL[группа] = пути через \n
 SEL=()
 for g in "${MG_GROUPS[@]}"; do
-    [[ ${GRP_STATE[$g]} == ON ]] || continue
     if [[ ${GRP_HAS_SUB[$g]:-} ]]; then
+        # галочка группы — массовый переключатель; решают состояния подпунктов:
+        # ON-подпункт едет даже внутри выключенной группы (см. selection [extra])
         while IFS= read -r k; do
             [[ -n "$k" && ${SUB_STATE[$g|$k]:-} == ON ]] || continue
             IFS=';' read -r _ sz _ p <<<"${SUBS[$g|$k]}"
@@ -449,7 +409,7 @@ for g in "${MG_GROUPS[@]}"; do
             SEL+=("$k")
             GRP_SIZE_PLAN[$g]=$(( ${GRP_SIZE_PLAN[$g]:-0} + ${sz:-0} ))
         done < <(SUB_KEYS "$g")
-    else
+    elif [[ ${GRP_STATE[$g]} == ON ]]; then
         SIZE_M[$g]="${GRP_SIZE[$g]:-0}"; SEL+=("$g")
         GRP_SIZE_PLAN[$g]=$(( ${GRP_SIZE_PLAN[$g]:-0} + ${GRP_SIZE[$g]:-0} ))
     fi
@@ -619,7 +579,7 @@ fi
 
 # ---------- 10. Самообновление инструмента на SSD ----------
 info "Синхронизация инструмента на SSD..."
-TOOL_FILES=(lib.sh tui.py pack.sh pack-kitty.sh unpack.sh mapping.tsv exclude.txt migrate.conf README.md SKILL.md)
+TOOL_FILES=(lib.sh tui.py conf.py inventory.toml selection.toml pack.sh pack-kitty.sh unpack.sh mapping.tsv exclude.txt README.md SKILL.md)
 if (( DRY )); then
     dry "cp ${TOOL_FILES[*]} -> $TOOL_ROOT/"
 else

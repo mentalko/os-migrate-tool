@@ -38,7 +38,7 @@ bash unpack.sh --dry-run dotfiles.tar.gz               # отчёт без из�
 
 ```
 os-migrate-tool/
-├── lib.sh tui.py pack.sh unpack.sh mapping.tsv exclude.txt migrate.conf README.md SKILL.md  # самообновляются
+├── lib.sh tui.py conf.py inventory.toml selection.toml pack.sh unpack.sh mapping.tsv exclude.txt README.md SKILL.md  # самообновляются
 └── archives/
     ├── 2026-11-09_ubuntu/      # прогон = дата_исходная-ОС
     │   ├── manifest.txt        # дерево + sha256
@@ -56,26 +56,34 @@ os-migrate-tool/
 терминала, корректная перерисовка после resize. Если python3 недоступен —
 автоматический fallback на встроенный bash-TUI (lib.sh).
 
-## migrate.conf — пути и дефолты чекбоксов (без хардкода в скриптах)
+## Конфигурация: inventory.toml + selection.toml (TOML, без хардкода в скриптах)
 
-Списки разделены `:` — **пути могут содержать пробелы** (например
-`Documents/[10] SKILLS`). Задают: `APPIMG_DIRS`, `DOT_DIRS`, `DOT_FILES`,
-`AGENT_DIRS` (в home), `AGENT_CONFIG_DIRS` (данные агентов в .config),
-`AGENT_SESSIONS_DIRS` (сессии отдельно — актуализирует агент на новой системе),
-`BROWSER_DIRS`, `DATA_DIRS`, `TOOLCHAIN_DIRS`, `FLATPAK_DATA_DIRS`,
-`TMP_DIRS` (пусто — /tmp не пакуем), `EXTRA_DIRS`, `COMPRESS_ESTIMATE`.
-Каждый путь — отдельная строка в чеклисте pack.sh (группа → подпункты).
+Два файла, парсит `conf.py` (stdlib `tomllib`, python ≥ 3.11):
 
-Дефолты галочек (подобраны агентом, чтобы не расставлять вручную каждый раз):
-- `CHECKBOX_GROUPS_OFF="toolchain:extra"` — группы, по умолчанию выключенные;
-- `CHECKBOX_SUBS_OFF` — подпункты выключенные поверх группового дефолта;
-- `CHECKBOX_SUBS_ON` — включённые поверх (можно внутри выключенной группы).
-  Формат элемента: `группа|тег`, элементы через **запятую** (в тегах есть `:`).
-  Списки путей в конфиге — полный инвентарь; что едет — решают галочки.
+**`inventory.toml`** — полный инвентарь: пути по группам (`[agents]` home/config/sessions,
+`[dotfiles]`, `[browsers]`, `[data]`, `[toolchain]`, `[flatpak]`, `[extra]`…),
+`[appimages] dirs` — где искать AppImage, `[desc]` — описания пунктов
+(что в каталоге / что за программы), `[meta] compress_estimate`.
+Конфиг — **полный инвентарь**: всё видно в чеклисте, несуществующие пути
+автоматически пропускаются.
 
-Описания пунктов: `DESC_MAP` — строки `путь|описание` (для AppImage — имя файла).
-Их видит чеклист под каждым подпунктом: что в каталоге и какие там программы.
-Добавил путь — добавь описание.
+**`selection.toml`** — галочки по умолчанию, деревом:
+```toml
+[groups]
+agents    = true
+browsers  = true
+toolchain = false
+extra     = false
+
+[agents]                  # точечно внутри группы
+".zcode" = true
+".config/Cursor" = false
+
+[extra]                   # ON внутри выключенной группы — тоже можно
+"v2rayN" = true
+```
+Не упомянутые подпункты наследуют группу; ручные галочки в чеклисте
+перекрывают всё. Подпункт с ON едет даже внутри выключенной группы.
 
 ## mapping.tsv
 
@@ -89,7 +97,7 @@ os-migrate-tool/
 ## Требования
 
 - bash ≥ 4.4, tar, lsblk, df — базовая система
-- **python3 с curses** (есть на Ubuntu и Cachy по умолчанию) — для TUI;
-  без него скрипты работают через bash-fallback
+- **python3 ≥ 3.11** (stdlib `tomllib` + curses; есть на Ubuntu и Cachy) —
+  конфиг и TUI на нём; bash-TUI остаётся fallback'ом терминала
 - Формат SSD: FAT/exFAT/NTFS — ок (запуск через `bash pack.sh`; права/владельцы
   хранятся внутри tar.gz; симлинк `latest` заменяется на `latest.txt`)

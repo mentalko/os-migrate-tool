@@ -24,35 +24,47 @@ pack.sh ──► SSD/os-migrate-tool/ ──► unpack.sh
 | `unpack.sh` | Восстановление: выбор прогона и компонентов, установка пакетов, распаковка |
 | `lib.sh` | Общий код: сообщения, dry-run, root-чек, ERR-trap, выбор движка TUI, bash-fallback TUI |
 | `tui.py` | TUI на curses (stdlib python): режимы TREE / MENU / CHECK |
-| `migrate.conf` | Единственный источник путей, описаний и дефолтов галочек |
+| `inventory.toml` | Полный инвентарь путей по группам + описания (`[desc]`) |
+| `selection.toml` | Галочки по умолчанию: `[groups]` + точечные таблицы `[группа]` |
+| `conf.py` | Мост конфига в bash: `eval "$(conf.py inv sel)"`, stdlib `tomllib` |
 | `mapping.tsv` | Маппинг apt-пакетов → pacman/yay-команды |
 | `exclude.txt` | Исключения для tar (кэши, node_modules, Steam…) |
 | `pack-kitty.sh` | Лаунчер: pack.sh в окне kitty с логом сессии для агента |
 
-## migrate.conf — формат
+## Конфигурация: inventory.toml + selection.toml
 
-Списки путей разделены **`:`** (не пробелом — пути могут содержать пробелы,
-пример: `Documents/[10] SKILLS`). Пути относительные от `$HOME`, кроме
-`APPIMG_DIRS` (абсолютные).
+Два TOML-файла; парсит `conf.py` (stdlib `tomllib`, python ≥ 3.11) и печатает
+bash-код для `eval` в pack.sh: массивы путей (`AGENT_DIRS_ARR`, `DOT_ARR`,
+`AGENT_SESSIONS_ARR`, …), assoc `DESC` (описания), `TUI_GRP_STATE`
+(ON/OFF по группам), `TUI_SEL` (`группа|путь` → ON/OFF), `COMPRESS_ESTIMATE`.
+Значения квотируются `shlex.quote`; assoc-элементы эмитятся строго как
+`[ключ]=значение` (голый `ключ=значение` внутри `declare -A=(…)` bash не
+парсит как subscript).
 
-- `APPIMG_DIRS` — где искать `*.AppImage` (find -maxdepth 1)
-- `DOT_DIRS`, `DOT_FILES` — группа dotfiles
-- `AGENT_DIRS` — агенты в home; `AGENT_CONFIG_DIRS` — агенты в `.config` (обе — группа agents)
-- `AGENT_SESSIONS_DIRS` — сессии отдельно; пути, покрытые родителями из
-  `AGENT_DIRS`/`AGENT_CONFIG_DIRS`, отбрасываются (covered-check), чтобы не
-  паковать дважды. Актуализируется агентом на новой системе.
-- `BROWSER_DIRS`, `DATA_DIRS`, `TOOLCHAIN_DIRS`, `FLATPAK_DATA_DIRS`, `TMP_DIRS`, `EXTRA_DIRS`
-- `CHECKBOX_GROUPS_OFF` — группы, по умолчанию выключенные (подпункты наследуют);
-  `CHECKBOX_SUBS_OFF` — точечные выключения; `CHECKBOX_SUBS_ON` — включения
-  поверх (можно пункт внутри OFF-группы). Формат элемента: `группа|тег`,
-  элементы разделены **запятой** (в тегах есть `:`). Порядок применения:
-  групповые дефолты → SUBS_OFF → SUBS_ON; ручные галочки в чеклисте перекрывают всё.
-- `DESC_MAP` — многострочный `путь|описание` (для AppImage — имя файла); то, что
-  видно в чеклисте под каждым подпунктом
-- `COMPRESS_ESTIMATE` — оценка сжатия tar.gz в % для плана и проверки места
+**inventory.toml** — полный инвентарь (несуществующие пути авто-скип):
+`[appimages] dirs` — где искать AppImage; `[dotfiles] dirs+files`;
+`[agents] home/config/sessions` — сессии, покрытые родителями из home/config,
+conf.py отбрасывает (covered-check, двойной упаковки нет); `[browsers]`,
+`[data]`, `[toolchain]`, `[flatpak]`, `[tmp]`, `[extra]` — `paths`;
+`[desc]` — описания пунктов; `[meta] compress_estimate`.
 
-Каждый путь из списков = отдельная строка-подпункт чеклиста; группы без
-подпунктов (packages) берут фиксированный размер.
+**selection.toml** — галочки по умолчанию, деревом:
+```toml
+[groups]
+agents = true
+extra  = false
+
+[agents]                 # точечно; не упомянутые наследуют группу
+".zcode" = true
+".config/Cursor" = false
+
+[extra]                  # ON внутри выключенной группы — легально
+"v2rayN" = true
+```
+Порядок применения в pack.sh: группа → её подпункты → точечные TUI_SEL.
+Ручные галочки чеклиста перекрывают всё. Разворот SEL считает подпункты:
+ON-подпункт едет даже внутри выключенной группы (галочка группы — массовый
+переключатель, не фильтр).
 
 ## TUI (tui.py)
 
@@ -102,7 +114,7 @@ lib.sh/pack.sh, голый bash, alt-screen `\e[?1049h`). ERR-trap возвра�
 1. `omt_dryrun` (арг `--dry-run`/`-n`) → `require_not_root` → проверка debian-подобной ОС.
 2. Выбор SSD: `lsblk` → не-`/` маунтпойнты → `ui_menu` (устройство, метка, ФС,
    размер, свободно); write-test `touch`.
-3. Парсинг `migrate.conf` → массивы; covered-check сессий; поиск AppImage.
+3. `eval "$(conf.py inventory.toml selection.toml)"` → массивы, DESC, дефолты галочек; поиск AppImage.
 4. Построение групп/подпунктов (`SUBS` = `desc;size;hint;path`, `SUB_ORDER`
    хранит порядок), дефолты из `CHECKBOX_*`, размеры `du -sm --apparent-size`.
 5. `ui_tree` (tui.py или fallback) → раскладка состояний обратно в
