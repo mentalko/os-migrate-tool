@@ -47,7 +47,7 @@ bash unpack.sh --dry-run agents                        # отчёт без из�
 os-migrate-tool/
 ├── pack.sh  pack-kitty.sh  unpack.sh   # скрипты
 ├── src/                                # lib.sh, tui.py, conf.py, mapping.tsv, exclude.txt
-├── configs/                            # inventory.yaml, selection.yaml
+├── configs/                            # inventory.yaml, selection.yaml, exclude_dirs.yaml
 ├── README.md                           # самообновляется
 ├── skills/os-migrate-tool/SKILL.md     # скилл для ИИ-агента (самообновляется)
 └── archives/

@@ -28,14 +28,15 @@ pack.sh ──► SSD/os-migrate-tool/ ──► unpack.sh
 | `src/tui.py` | TUI на curses: TREE / MENU / CHECK |
 | `src/conf.py` | Мост конфига в bash: `eval "$(conf.py inv sel)"`; мини-YAML на stdlib |
 | `src/mapping.tsv` | Маппинг apt-пакетов → pacman/yay |
-| `src/exclude.txt` | Исключения tar (кэши, node_modules, Steam…) |
 | `configs/inventory.yaml` | Полный инвентарь: группы `group_*` с секциями + `desc:` |
 | `configs/selection.yaml` | Галочки по умолчанию: `group_<имя>.on` + вложенные пути |
+| `configs/exclude_dirs.yaml` | Исключения: `tar:` шаблоны (все сегменты) + `appimages.skip_zero_size` |
 | `pack-kitty.sh` | Лаунчер: pack.sh в окне kitty с логом сессии для агента |
 
 ## Конфигурация: inventory.yaml + selection.yaml
 
-Два YAML-файла в `configs/`; парсит `src/conf.py` и печатает bash-код для `eval` в pack.sh:
+Три YAML-файла в `configs/`; парсит `src/conf.py` и печатает bash-код для `eval` в pack.sh
+(третий файл — exclude_dirs → `EXCL_PATTERNS_ARR` + `APPIMG_SKIP_ZERO`):
 массивы путей (`AGENT_DIRS_ARR`, `DOT_ARR`, `AGENT_SESSIONS_ARR`, …), assoc
 `DESC` (описания), `TUI_GRP_STATE` (ON/OFF по группам), `TUI_SEL`
 (`группа|путь` → ON/OFF), `COMPRESS_ESTIMATE`. Значения квотируются

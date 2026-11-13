@@ -91,11 +91,14 @@ lib.sh. На FAT/exFAT/NTFS-SSD запускать `bash pack.sh` / `bash unpack
 
 ## Конфиг на новой системе
 
-Конфигурация — два YAML-файла в `configs/` (парсит `src/conf.py`, мини-YAML на stdlib):
+Конфигурация — три YAML-файла в `configs/` (парсит `src/conf.py`, мини-YAML на stdlib):
 **`configs/inventory.yaml`** — полный инвентарь: группы `group_<имя>` с секциями
 (`home`/`config`/`sessions` у агентов, `dirs`/`files`, `paths`) и `desc:`;
 **`configs/selection.yaml`** — галочки по умолчанию, дерево повторяет чеклист
 (`group_<имя>.on` + вложенные пути `путь: true/false`).
+**`configs/exclude_dirs.yaml`** — исключения: `tar:` шаблоны для всех сегментов
+(без хвостового `/`), `appimages.skip_zero_size` — битые/пустые AppImage не
+переносятся автоматически.
 При инициализации на новой системе ИИ-агент обязан:
 1. проверить/актуализировать пути в `configs/inventory.yaml` под новую систему (они могут
    отличаться: версии агентов, новые каталоги сессий — особое внимание

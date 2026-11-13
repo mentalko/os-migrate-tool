@@ -120,14 +120,18 @@ def expand(p: str) -> str:
 
 
 def main() -> int:
-    if len(sys.argv) != 3:
-        sys.stderr.write("usage: conf.py inventory.yaml selection.yaml\n")
+    if len(sys.argv) < 3:
+        sys.stderr.write("usage: conf.py inventory.yaml selection.yaml [exclude_dirs.yaml]\n")
         return 2
     try:
         with open(sys.argv[1], encoding="utf-8") as f:
             inv = parse_yaml(f.read())
         with open(sys.argv[2], encoding="utf-8") as f:
             sel = parse_yaml(f.read())
+        excl = {}
+        if len(sys.argv) > 3 and os.path.exists(sys.argv[3]):
+            with open(sys.argv[3], encoding="utf-8") as f:
+                excl = parse_yaml(f.read())
     except (OSError, ValueError) as e:
         sys.stderr.write(f"conf.py: {e}\n")
         return 2
@@ -187,6 +191,10 @@ def main() -> int:
     assoc("TUI_SEL", sel_flat)
 
     out.append(f"COMPRESS_ESTIMATE={int(inv.get('meta', {}).get('compress_estimate', 55))}")
+
+    # исключения (configs/exclude_dirs.yaml)
+    arr("EXCL_PATTERNS_ARR", excl.get("tar", []) or [])
+    out.append(f"APPIMG_SKIP_ZERO={1 if excl.get('appimages', {}).get('skip_zero_size', False) else 0}")
 
     print("\n".join(out))
     return 0

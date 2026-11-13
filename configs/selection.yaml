@@ -8,7 +8,7 @@ group_packages:
 
 group_appimages:
   on: true                  # *.AppImage из ~/Applications, ~/bin, ~/Desktop
-  "ZCode.AppImage": false   # битый (0 байт) — не переносить
+                            # битые/пустые отсекает exclusions.yaml (skip_zero_size)
 
 group_dotfiles:
   on: true                  # конфиги, ssh, gnupg, rc-файлы

@@ -50,18 +50,24 @@ ok "SSD: $SSD (свободно $(df -h --output=avail "$SSD" | tail -1))"
 command -v python3 >/dev/null 2>&1 || die "нужен python3 — на нём парсинг конфига и TUI"
 [[ -f "$TOOL_DIR/configs/inventory.yaml" && -f "$TOOL_DIR/configs/selection.yaml" ]] \
     || die "нет конфига: configs/inventory.yaml / configs/selection.yaml"
-CONF_OUT="$(python3 "$OMT_LIB_DIR/conf.py" "$TOOL_DIR/configs/inventory.yaml" "$TOOL_DIR/configs/selection.yaml")" \
+CONF_OUT="$(python3 "$OMT_LIB_DIR/conf.py" "$TOOL_DIR/configs/inventory.yaml" "$TOOL_DIR/configs/selection.yaml" "$TOOL_DIR/configs/exclude_dirs.yaml")" \
     || die "ошибка конфига: см. сообщение выше"
 eval "$CONF_OUT"
 : "${COMPRESS_ESTIMATE:=55}"
 
 arr_nonempty() { local e; for e in "$@"; do [[ -n "$e" ]] && return 0; done; return 1; }
 
-# AppImage: поиск по абсолютным путям из инвентаря (без eval)
+# AppImage: поиск по абсолютным путям из инвентаря (без eval);
+# skip_zero_size из configs/exclude_dirs.yaml — битые/пустые отсекаются условием
 APPS_FIND=""
 for d in "${APPIMG_ARR[@]}"; do
     [[ -n "$d" && -d "$d" ]] || continue
-    while IFS= read -r f; do APPS_FIND+="$f"$'\n'; done < <(find "$d" -maxdepth 1 -name '*.AppImage' 2>/dev/null)
+    while IFS= read -r f; do
+        if (( APPIMG_SKIP_ZERO )) && [[ ! -s "$f" ]]; then
+            continue
+        fi
+        APPS_FIND+="$f"$'\n'
+    done < <(find "$d" -maxdepth 1 -name '*.AppImage' 2>/dev/null)
 done
 
 # ---------- 4. Чеклист: группы + подпункты ----------
@@ -473,18 +479,22 @@ else
 fi
 info "Прогон: ${RUN_NAME}.tar.gz"
 
-# dedup-исключения генерируются один раз из инвентаря: агентские пути, браузеры,
-# тулчейны и flatpak едут в своих сегментах — вырезаются из dotfiles/data.
-EXCL_DEDUP=""
+# исключения: паттерны из configs/exclude_dirs.yaml — на ВСЕ сегменты;
+# dedup (агентские/браузерные/тулчейн/flatpak пути + сам tool) — только
+# dotfiles/data (они едут в своих сегментах).
+EXCL_PATTERNS=""; EXCL_DEDUP=""; EXCL_DOTDATA=""
 if (( ! DRY )); then
+    EXCL_PATTERNS="$META/exclude-patterns"
+    printf '%s\n' "${EXCL_PATTERNS_ARR[@]}" > "$EXCL_PATTERNS"
     EXCL_DEDUP="$META/.exclude-dedup"
     : > "$EXCL_DEDUP"
     for p in "${AGENT_DIRS_ARR[@]}" "${AGENT_CONF_ARR[@]}" "${BROWSER_ARR[@]}" "${FLATPAK_ARR[@]}" "${TOOLCHAIN_ARR[@]}"; do
         [[ -n "$p" ]] && printf '%s/\n' "$p" >> "$EXCL_DEDUP"
     done
     printf 'Documents/os-migrate-tool/\n' >> "$EXCL_DEDUP"
+    cat "$EXCL_PATTERNS" "$EXCL_DEDUP" > "$META/exclude-dotfiles-data"
+    EXCL_DOTDATA="$META/exclude-dotfiles-data"
 fi
-EXCL_ALL="$TOOL_DIR/src/exclude.txt"
 
 seg_tar() { # $1=каталог сегмента в бандле, $2=exclude-файл (пусто = без), $3=пути через \n (от $HOME)
     local seg="$1" excl="$2" list="$3"
@@ -549,14 +559,14 @@ if [[ -n "${GRP_SEL[appimg]:-}" ]]; then
 fi
 
 # ---------- 8c. Сегменты по группам ----------
-[[ -n "${GRP_SEL[dot]:-}" ]]       && seg_tar dotfiles   "$EXCL_DEDUP"  "${GRP_SEL[dot]}"
-[[ -n "${GRP_SEL[data]:-}" ]]      && seg_tar data       "$EXCL_DEDUP"  "${GRP_SEL[data]}"
-[[ -n "${GRP_SEL[agent]:-}" ]]     && seg_tar agents     "$EXCL_ALL"    "${GRP_SEL[agent]}"
-[[ -n "${GRP_SEL[browser]:-}" ]]   && seg_tar browsers   "$EXCL_ALL"    "${GRP_SEL[browser]}"
-[[ -n "${GRP_SEL[flatpak]:-}" ]]   && seg_tar flatpak    "$EXCL_ALL"    "${GRP_SEL[flatpak]}"
-[[ -n "${GRP_SEL[toolchain]:-}" ]] && seg_tar toolchain  "$EXCL_ALL"    "${GRP_SEL[toolchain]}"
-[[ -n "${GRP_SEL[tmp]:-}" ]]       && seg_tar tmp        "$EXCL_ALL"    "${GRP_SEL[tmp]}"
-[[ -n "${GRP_SEL[extra]:-}" ]]     && seg_tar extra      "$EXCL_ALL"    "${GRP_SEL[extra]}"
+[[ -n "${GRP_SEL[dot]:-}" ]]       && seg_tar dotfiles   "$EXCL_DOTDATA" "${GRP_SEL[dot]}"
+[[ -n "${GRP_SEL[data]:-}" ]]      && seg_tar data       "$EXCL_DOTDATA" "${GRP_SEL[data]}"
+[[ -n "${GRP_SEL[agent]:-}" ]]     && seg_tar agents     "$EXCL_PATTERNS" "${GRP_SEL[agent]}"
+[[ -n "${GRP_SEL[browser]:-}" ]]   && seg_tar browsers   "$EXCL_PATTERNS" "${GRP_SEL[browser]}"
+[[ -n "${GRP_SEL[flatpak]:-}" ]]   && seg_tar flatpak    "$EXCL_PATTERNS" "${GRP_SEL[flatpak]}"
+[[ -n "${GRP_SEL[toolchain]:-}" ]] && seg_tar toolchain  "$EXCL_PATTERNS" "${GRP_SEL[toolchain]}"
+[[ -n "${GRP_SEL[tmp]:-}" ]]       && seg_tar tmp        "$EXCL_PATTERNS" "${GRP_SEL[tmp]}"
+[[ -n "${GRP_SEL[extra]:-}" ]]     && seg_tar extra      "$EXCL_PATTERNS" "${GRP_SEL[extra]}"
 
 # staging больше не нужен — содержимое внутри бандла
 if (( ! DRY )); then rm -rf "$META/packages" "$META/appimages"; fi
@@ -591,13 +601,13 @@ if (( ! DRY )); then
     # резерв meta внутри бандла: если .meta/ на диске потеряется — paths.tsv
     # восстанавливается распаковкой сегмента meta/ (manifest с sha внутрь не
     # положить — рекурсия, он только снаружи)
-    ( cd "$META" && tar -cz --transform "s,^,meta/," paths.tsv .exclude-dedup ) >> "$BUNDLE"
+    ( cd "$META" && tar -cz --transform "s,^,meta/," paths.tsv .exclude-dedup exclude-patterns ) >> "$BUNDLE"
     ok "meta/ — paths.tsv дублирован в бандл"
 fi
 
 # ---------- 10. Самообновление инструмента на SSD ----------
 info "Синхронизация инструмента на SSD..."
-TOOL_FILES=(src/lib.sh src/tui.py src/conf.py src/mapping.tsv src/exclude.txt configs/inventory.yaml configs/selection.yaml skills/os-migrate-tool/SKILL.md pack.sh pack-kitty.sh unpack.sh README.md)
+TOOL_FILES=(src/lib.sh src/tui.py src/conf.py src/mapping.tsv configs/exclude_dirs.yaml configs/inventory.yaml configs/selection.yaml skills/os-migrate-tool/SKILL.md pack.sh pack-kitty.sh unpack.sh README.md)
 if (( DRY )); then
     dry "cp ${TOOL_FILES[*]} -> $TOOL_ROOT/"
 else
