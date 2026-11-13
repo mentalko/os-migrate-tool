@@ -205,8 +205,8 @@ _tree_feed() { # TREE-протокол для tui.py: группы + подпу�
         fi
         while IFS= read -r k; do
             [[ -n "$k" ]] || continue
-            IFS=';' read -r d s h <<<"${SUBS[$g|$k]}"
-            printf 'S;%s;%s;%s;%s;%s;%s\n' "$g" "$k" "$d" "${s:-0}" "${SUB_STATE[$g|$k]}" "$h"
+            IFS=';' read -r d s h p <<<"${SUBS[$g|$k]}"
+            printf 'S;%s;%s;%s;%s;%s;%s;%s\n' "$g" "$k" "$d" "${s:-0}" "${SUB_STATE[$g|$k]}" "$h" "$p"
         done < <(SUB_KEYS "$g")
     done
     return 0

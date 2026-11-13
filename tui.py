@@ -25,9 +25,45 @@
 """
 
 import os
+import re
+import subprocess
 import sys
 
 import curses
+
+# кэш автосводки «что внутри каталога» — по одному вычислению на путь
+_summary_cache = {}
+
+
+def dir_summary(path: str) -> str:
+    """Внутри: крупнейшие подпапки/файлы каталога (du, лениво, с кэшем)."""
+    if not path or path in _summary_cache:
+        return _summary_cache.get(path, '')
+    res = ''
+    try:
+        if os.path.isdir(path):
+            kids = [e.path for e in os.scandir(path)]
+            hidden = [k for k in kids if os.path.basename(k).startswith('.')]
+            if len(hidden) == len(kids) and kids:
+                kids = hidden          # каталог целиком из скрытых (.gnupg и т.п.)
+            else:
+                kids = [k for k in kids if not os.path.basename(k).startswith('.')]
+            if kids:
+                r = subprocess.run(["du", "-sm", "--apparent-size", *kids],
+                                   capture_output=True, text=True, timeout=20)
+                rows = []
+                for ln in r.stdout.splitlines():
+                    sz, _, name = ln.partition('\t')
+                    rows.append((int(sz or 0), os.path.basename(name.rstrip('/'))))
+                rows.sort(reverse=True)
+                big = [f"{n} {fmt_m(s)}" for s, n in rows[:5] if s >= 1]
+                if big:
+                    more = f" · +{len(rows) - len(big)}" if len(rows) > 5 else ''
+                    res = "Внутри: " + " · ".join(big) + more
+    except Exception:
+        res = ''
+    _summary_cache[path] = res
+    return res
 
 
 def parse_stdin():
@@ -46,7 +82,8 @@ def parse_stdin():
             elif mode == 'TREE' and p[0] == 'S':
                 subs.setdefault(p[1], []).append(
                     {'tag': p[2], 'desc': p[3], 'size': int(p[4] or 0),
-                     'on': p[5] == 'ON', 'hint': p[6] if len(p) > 6 else ''})
+                     'on': p[5] == 'ON', 'hint': p[6] if len(p) > 6 else '',
+                     'path': p[7] if len(p) > 7 else ''})
             elif mode == 'MENU' and p[0] == 'M':
                 items.append({'tag': p[1], 'desc': p[2],
                               'hint': p[3] if len(p) > 3 else ''})
@@ -117,33 +154,39 @@ class Ctx:
             return tree_rows(self.groups, self.subs)
         return [(None, None, it) for it in self.items]
 
-    def hint_lines(self, row, w):
+    def hint_lines(self, row, w, max_lines=6):
+        """Нижняя панель: подробное описание пункта + путь + «что внутри» + хоткеи."""
         kind, g, it = row
-        src = []
         if self.mode == 'MENU':
             src = [it['hint'] or it['desc'], 'q — отмена']
         elif self.mode == 'CHECK':
-            src = [it['hint'] or it['desc'], 'q — отмена']
-        elif kind == 'G':
-            has = bool(self.subs.get(g['g']))
-            src = [g['desc']]
-            if has and g['expanded']:
-                src += ['пробел — отметить/снять группу целиком',
-                        '← — свернуть подпункты', 'q — отмена']
-            elif has:
-                src += ['→ — раскрыть подпункты', 'q — отмена']
-            else:
-                src += ['q — отмена']
-        else:
             src = [it['hint'] or it['desc'],
-                   '← — вернуться к родительской группе', 'q — отмена']
+                   'пробел — галочка · a/n — все/ничего · q — отмена']
+        elif kind == 'G':
+            src = [g['desc']]
+            has = bool(self.subs.get(g['g']))
+            if has and g['expanded']:
+                src.append('пробел — вся группа · ← — свернуть · Tab — свернуть все · q — отмена')
+            elif has:
+                src.append('→ — раскрыть подпункты · Tab — раскрыть все · q — отмена')
+            else:
+                src.append('Enter — ок · q — отмена')
+        else:
+            # подпункт: полное описание, путь, автосводка содержимого, хоткеи
+            src = [it['desc']]
+            path = it.get('path', '')
+            if path:
+                home = os.path.expanduser('~')
+                src.append('~' + path[len(home):] if path.startswith(home) else path)
+            s = dir_summary(path)
+            if s:
+                src.append(s)
+            src.append('← — к родительской группе · пробел — галочка · Tab — все списки · q — отмена')
+        wrapn = max(10, w - 9)
         out = []
         for line in src:
-            for chunk in (line.split('|') if line else ['']):
-                if len(chunk) > w - 9:
-                    chunk = chunk[:w - 10] + '…'
-                out.append(chunk)
-        return out[:4]
+            out.extend([line[i:i + wrapn] for i in range(0, len(line), wrapn)] or [''])
+        return out[:max_lines]
 
     def draw(self):
         scr = self.scr
@@ -151,18 +194,22 @@ class Ctx:
         h, w = scr.getmaxyx()
         if h < 6 or w < 20:
             return
+        rows_all = self.rows()
+        if self.cur >= len(rows_all):          # страховка: курсор за пределами списка
+            self.cur = max(0, len(rows_all) - 1)
         title = os.environ.get('OMT_TUI_TITLE', '')
         scr.addnstr(0, 0, f"== {title}", w - 1, curses.A_BOLD)
-        scr.addnstr(1, 0,
-                    "↑/↓ j/k — курсор · пробел — галочка · a/n — все/ничего · q — отмена · Enter — ок"
-                    + (" · →/← — раскрыть/свернуть" if self.mode == 'TREE' else ""),
-                    w - 1, curses.A_DIM)
+        hdr = "↑/↓ j/k — курсор · пробел — галочка · a/n — все/ничего · q — отмена · Enter — ок"
+        if self.mode == 'TREE':
+            hdr += " · →/← — раскрыть/свернуть · Tab — все списки"
+        scr.addnstr(1, 0, hdr, w - 1, curses.A_DIM)
         rows = self.rows()
         if self.mode == 'TREE':
             scr.addnstr(2, 0,
                         f"Выбрано сырого объёма: ~{fmt_m(tree_total(self.groups, self.subs))}",
                         w - 1, curses.A_DIM)
-        hints = self.hint_lines(rows[self.cur], w)
+        max_h = max(2, min(6, h - 9))
+        hints = self.hint_lines(rows[self.cur], w, max_h)
         body_top = 3
         body_h = max(1, h - body_top - len(hints) - 2)
         # вьюпорт: держим курсор на экране
@@ -309,6 +356,12 @@ def loop(scr, mode, groups, subs, items):
                 tree_expand(ctx)
             elif key in (curses.KEY_LEFT, ord('<'), ord('h'), ord('H'), ord('b'), ord('B')):
                 tree_collapse(ctx)
+            elif key == 9:  # Tab: раскрыть/свернуть все группы разом
+                any_exp = any(gg['expanded'] for gg in groups)
+                for gg in groups:
+                    gg['expanded'] = not any_exp
+                if ctx.cur >= len(ctx.rows()):
+                    ctx.cur = len(ctx.rows()) - 1   # список ужался — клампим курсор
         if key in (32, ord(',')) and mode in ('TREE', 'CHECK'):
             toggle(g, it, subs)
         elif key in (ord('a'), ord('A'), ord('ф'), ord('Ф')):
