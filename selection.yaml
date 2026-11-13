@@ -1,0 +1,61 @@
+# os-migrate-tool :: selection.yaml — галочки по умолчанию (дерево выбора).
+# Структура повторяет дерево чеклиста: group_<имя> → on: (сама группа) и
+# вложенные пути (подпункты). Не упомянутые подпункты наследуют группу.
+# Ручные галочки в чеклисте pack.sh перекрывают всё это.
+
+group_packages:
+  on: true                  # манифесты apt/flatpak/vscode/dconf/cron
+
+group_appimages:
+  on: true                  # *.AppImage из ~/Applications, ~/bin, ~/Desktop
+
+group_dotfiles:
+  on: true                  # конфиги, ssh, gnupg, rc-файлы
+
+group_data:
+  on: true                  # не-скрытые каталоги home (Documents, bin, ...)
+
+group_agents:
+  on: true                  # сессии/данные бэкапим только zcode и opencode
+  .zcode: true              # сессии, db, конфиги (внимание: credentials!)
+  .local/share/opencode: true   # сессии opencode (opencode.db), auth, snapshot
+  .config/opencode: true    # конфиги и скиллы opencode
+  .config/ZCode: true       # данные приложения ZCode
+  .qoder: false
+  .codex: false
+  .claude: false
+  .agents: false
+  .jcode: false
+  .gemini: false
+  .minimax-code: false
+  .opencode: false          # установка CLI — переустановить на Arch
+  .kilo: false
+  .pi-bolt: false
+  .kimi-code: false
+  .warp: false
+  .paseo: false
+  .config/Qoder: false
+  .config/com.qoder.app.stable: false
+  .config/Codex: false
+  .config/cursor: false
+  .config/Cursor: false
+  .config/CherryStudio: false
+  .config/warp-terminal: false
+
+group_browsers:
+  on: true                  # Chrome + Firefox
+
+group_flatpak:
+  on: true                  # профили flatpak-приложений (.var)
+
+group_toolchain:
+  on: false                 # rustup/nvm/bun/npm/vscode — переустановить на Cachy
+
+group_tmp:
+  on: false                 # группа не существует (пусто в inventory)
+
+group_extra:
+  on: false                 # группа выключена, но нужное включено ниже
+  v2rayN: true              # конфиги прокси — нужны на новой системе
+  paperless-ngx: true       # compose-стек и точки обмена (1M)
+  Sync: true                # пока пустой (1M)

@@ -45,12 +45,12 @@ touch "$SSD/.omt-write-test" 2>/dev/null && rm -f "$SSD/.omt-write-test" \
     || die "диск $SSD не доступен на запись (ro-маунт?)"
 ok "SSD: $SSD (свободно $(df -h --output=avail "$SSD" | tail -1))"
 
-# ---------- 3. Конфиг: inventory.toml (инвентарь) + selection.toml (галочки) ----------
-# Парсинг на python (tomllib — stdlib): conf.py печатает bash-код, eval применяет.
+# ---------- 3. Конфиг: inventory.yaml (инвентарь) + selection.yaml (галочки) ----------
+# Парсинг на python (мини-YAML в conf.py, stdlib): печатает bash-код, eval применяет.
 command -v python3 >/dev/null 2>&1 || die "нужен python3 — на нём парсинг конфига и TUI"
-[[ -f "$TOOL_DIR/inventory.toml" && -f "$TOOL_DIR/selection.toml" ]] \
-    || die "нет конфига: inventory.toml / selection.toml рядом с pack.sh"
-CONF_OUT="$(python3 "$TOOL_DIR/conf.py" "$TOOL_DIR/inventory.toml" "$TOOL_DIR/selection.toml")" \
+[[ -f "$TOOL_DIR/inventory.yaml" && -f "$TOOL_DIR/selection.yaml" ]] \
+    || die "нет конфига: inventory.yaml / selection.yaml рядом с pack.sh"
+CONF_OUT="$(python3 "$TOOL_DIR/conf.py" "$TOOL_DIR/inventory.yaml" "$TOOL_DIR/selection.yaml")" \
     || die "ошибка конфига: см. сообщение выше"
 eval "$CONF_OUT"
 : "${COMPRESS_ESTIMATE:=55}"
@@ -68,7 +68,7 @@ done
 hM() { awk -v m="$1" 'BEGIN{ if (m>=1024) printf "%.1fG", m/1024; else printf "%dM", m }'; }
 m_of() { local p="$1"; [[ "$p" == /* ]] || p="$HOME/$p"; du -sm --apparent-size "$p" 2>/dev/null | cut -f1; }
 
-desc_of() { # описание из inventory.toml [desc]; $1=ключ (путь/имя AppImage), $2=fallback
+desc_of() { # описание из inventory.yaml [desc]; $1=ключ (путь/имя AppImage), $2=fallback
     local d="${DESC[$1]:-}"
     [[ -n "$d" ]] && { echo "$d"; return 0; }
     echo "$2"
@@ -158,9 +158,9 @@ GRP_DESC[data]="данные: ~/Documents и т.п.";                 GRP_SIZE[d
 GRP_DESC[flatpak]="данные flatpak-приложений (.var)";        GRP_SIZE[flatpak]=0
 GRP_DESC[toolchain]="тулчейны: rustup/nvm/bun/npm/vscode";   GRP_SIZE[toolchain]=0
 GRP_DESC[tmp]="пересоздаваемые данные (/tmp и т.п.)";        GRP_SIZE[tmp]=0
-GRP_DESC[extra]="дополнительные пути из inventory.toml";       GRP_SIZE[extra]=0
+GRP_DESC[extra]="дополнительные пути из inventory.yaml";       GRP_SIZE[extra]=0
 
-# ---------- дефолты чекбоксов: selection.toml (раскладка conf.py) ----------
+# ---------- дефолты чекбоксов: selection.yaml (раскладка conf.py) ----------
 # Группа -> её подпункты; точечные [группа]"путь" переопределяют (ON/OFF).
 declare -A SUB_STATE
 for g in "${MG_GROUPS[@]}"; do GRP_STATE[$g]="${TUI_GRP_STATE[$g]:-ON}"; done
@@ -579,7 +579,7 @@ fi
 
 # ---------- 10. Самообновление инструмента на SSD ----------
 info "Синхронизация инструмента на SSD..."
-TOOL_FILES=(lib.sh tui.py conf.py inventory.toml selection.toml pack.sh pack-kitty.sh unpack.sh mapping.tsv exclude.txt README.md SKILL.md)
+TOOL_FILES=(lib.sh tui.py conf.py inventory.yaml selection.yaml pack.sh pack-kitty.sh unpack.sh mapping.tsv exclude.txt README.md SKILL.md)
 if (( DRY )); then
     dry "cp ${TOOL_FILES[*]} -> $TOOL_ROOT/"
 else

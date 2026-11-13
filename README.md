@@ -38,7 +38,7 @@ bash unpack.sh --dry-run dotfiles.tar.gz               # отчёт без из�
 
 ```
 os-migrate-tool/
-├── lib.sh tui.py conf.py inventory.toml selection.toml pack.sh unpack.sh mapping.tsv exclude.txt README.md SKILL.md  # самообновляются
+├── lib.sh tui.py conf.py inventory.yaml selection.yaml pack.sh unpack.sh mapping.tsv exclude.txt README.md SKILL.md  # самообновляются
 └── archives/
     ├── 2026-11-09_ubuntu/      # прогон = дата_исходная-ОС
     │   ├── manifest.txt        # дерево + sha256
@@ -56,33 +56,28 @@ os-migrate-tool/
 терминала, корректная перерисовка после resize. Если python3 недоступен —
 автоматический fallback на встроенный bash-TUI (lib.sh).
 
-## Конфигурация: inventory.toml + selection.toml (TOML, без хардкода в скриптах)
+## Конфигурация: inventory.yaml + selection.yaml (YAML-подмножество, без хардкода в скриптах)
 
-Два файла, парсит `conf.py` (stdlib `tomllib`, python ≥ 3.11):
+Два файла, парсит `conf.py` (мини-YAML на stdlib — отступы 2 пробела, списки `- `, комментарии целыми строками):
 
-**`inventory.toml`** — полный инвентарь: пути по группам (`[agents]` home/config/sessions,
-`[dotfiles]`, `[browsers]`, `[data]`, `[toolchain]`, `[flatpak]`, `[extra]`…),
-`[appimages] dirs` — где искать AppImage, `[desc]` — описания пунктов
-(что в каталоге / что за программы), `[meta] compress_estimate`.
+**`inventory.yaml`** — полный инвентарь; группа = `group_<имя>`, внутри — секции
+(`home`/`config`/`sessions` у агентов, `dirs`+`files` у dotfiles, `paths` у остальных),
+`[desc]` → секция `desc:` — описания пунктов (что в каталоге / что за программы).
 Конфиг — **полный инвентарь**: всё видно в чеклисте, несуществующие пути
 автоматически пропускаются.
 
-**`selection.toml`** — галочки по умолчанию, деревом:
-```toml
-[groups]
-agents    = true
-browsers  = true
-toolchain = false
-extra     = false
+**`selection.yaml`** — галочки по умолчанию, дерево повторяет чеклист:
+```yaml
+group_agents:
+  on: true
+  .zcode: true
+  .config/Cursor: false
 
-[agents]                  # точечно внутри группы
-".zcode" = true
-".config/Cursor" = false
-
-[extra]                   # ON внутри выключенной группы — тоже можно
-"v2rayN" = true
+group_extra:
+  on: false          # группа выключена…
+  v2rayN: true       # …но пункт включен — ON внутри OFF-группы едет
 ```
-Не упомянутые подпункты наследуют группу; ручные галочки в чеклисте
+Не упомянутые подпункты наследуют `on:` группы; ручные галочки в чеклисте
 перекрывают всё. Подпункт с ON едет даже внутри выключенной группы.
 
 ## mapping.tsv
@@ -97,7 +92,7 @@ extra     = false
 ## Требования
 
 - bash ≥ 4.4, tar, lsblk, df — базовая система
-- **python3 ≥ 3.11** (stdlib `tomllib` + curses; есть на Ubuntu и Cachy) —
+- **python3** (мини-YAML-парсер conf.py + curses; есть на Ubuntu и Cachy) —
   конфиг и TUI на нём; bash-TUI остаётся fallback'ом терминала
 - Формат SSD: FAT/exFAT/NTFS — ок (запуск через `bash pack.sh`; права/владельцы
   хранятся внутри tar.gz; симлинк `latest` заменяется на `latest.txt`)

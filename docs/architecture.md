@@ -24,42 +24,45 @@ pack.sh ──► SSD/os-migrate-tool/ ──► unpack.sh
 | `unpack.sh` | Восстановление: выбор прогона и компонентов, установка пакетов, распаковка |
 | `lib.sh` | Общий код: сообщения, dry-run, root-чек, ERR-trap, выбор движка TUI, bash-fallback TUI |
 | `tui.py` | TUI на curses (stdlib python): режимы TREE / MENU / CHECK |
-| `inventory.toml` | Полный инвентарь путей по группам + описания (`[desc]`) |
-| `selection.toml` | Галочки по умолчанию: `[groups]` + точечные таблицы `[группа]` |
-| `conf.py` | Мост конфига в bash: `eval "$(conf.py inv sel)"`, stdlib `tomllib` |
+| `inventory.yaml` | Полный инвентарь: группы `group_*` с секциями + `desc:` |
+| `selection.yaml` | Галочки по умолчанию: `group_<имя>.on` + вложенные пути |
+| `conf.py` | Мост конфига в bash: `eval "$(conf.py inv sel)"`; мини-YAML на stdlib |
 | `mapping.tsv` | Маппинг apt-пакетов → pacman/yay-команды |
 | `exclude.txt` | Исключения для tar (кэши, node_modules, Steam…) |
 | `pack-kitty.sh` | Лаунчер: pack.sh в окне kitty с логом сессии для агента |
 
-## Конфигурация: inventory.toml + selection.toml
+## Конфигурация: inventory.yaml + selection.yaml
 
-Два TOML-файла; парсит `conf.py` (stdlib `tomllib`, python ≥ 3.11) и печатает
-bash-код для `eval` в pack.sh: массивы путей (`AGENT_DIRS_ARR`, `DOT_ARR`,
-`AGENT_SESSIONS_ARR`, …), assoc `DESC` (описания), `TUI_GRP_STATE`
-(ON/OFF по группам), `TUI_SEL` (`группа|путь` → ON/OFF), `COMPRESS_ESTIMATE`.
-Значения квотируются `shlex.quote`; assoc-элементы эмитятся строго как
-`[ключ]=значение` (голый `ключ=значение` внутри `declare -A=(…)` bash не
-парсит как subscript).
+Два YAML-файла; парсит `conf.py` и печатает bash-код для `eval` в pack.sh:
+массивы путей (`AGENT_DIRS_ARR`, `DOT_ARR`, `AGENT_SESSIONS_ARR`, …), assoc
+`DESC` (описания), `TUI_GRP_STATE` (ON/OFF по группам), `TUI_SEL`
+(`группа|путь` → ON/OFF), `COMPRESS_ESTIMATE`. Значения квотируются
+`shlex.quote`; assoc-элементы эмитятся строго как `[ключ]=значение` (голый
+`ключ=значение` внутри `declare -A=(…)` bash не парсит как subscript).
 
-**inventory.toml** — полный инвентарь (несуществующие пути авто-скип):
-`[appimages] dirs` — где искать AppImage; `[dotfiles] dirs+files`;
-`[agents] home/config/sessions` — сессии, покрытые родителями из home/config,
-conf.py отбрасывает (covered-check, двойной упаковки нет); `[browsers]`,
-`[data]`, `[toolchain]`, `[flatpak]`, `[tmp]`, `[extra]` — `paths`;
-`[desc]` — описания пунктов; `[meta] compress_estimate`.
+Парсер — **YAML-подмножество на stdlib** (PyYAML не нужен): вложенные
+отображения (отступы 2 пробела), блочные списки `- `, скаляры
+true/false/числа/строки, комментарии только целыми строками + инлайн ` #`
+срезается; anchors/flow/multi-line не поддерживаются. Формат наш — сложный
+YAML не нужен. Группы — ключи `group_<имя>` в порядке файла.
 
-**selection.toml** — галочки по умолчанию, деревом:
-```toml
-[groups]
-agents = true
-extra  = false
+**inventory.yaml** — полный инвентарь (несуществующие пути авто-скип):
+`group_appimages.dirs` — где искать AppImage; `group_dotfiles` — `dirs`+`files`;
+`group_agents` — `home`/`config`/`sessions` (сессии, покрытые родителями из
+home/config, conf.py отбрасывает — covered-check, двойной упаковки нет);
+`group_browsers/data/toolchain/flatpak/tmp/extra` — `paths`; `desc:` —
+описания пунктов; `meta.compress_estimate`.
 
-[agents]                 # точечно; не упомянутые наследуют группу
-".zcode" = true
-".config/Cursor" = false
+**selection.yaml** — галочки по умолчанию, дерево повторяет чеклист:
+```yaml
+group_agents:
+  on: true
+  .zcode: true
+  .config/Cursor: false
 
-[extra]                  # ON внутри выключенной группы — легально
-"v2rayN" = true
+group_extra:
+  on: false
+  v2rayN: true      # ON внутри выключенной группы — легально
 ```
 Порядок применения в pack.sh: группа → её подпункты → точечные TUI_SEL.
 Ручные галочки чеклиста перекрывают всё. Разворот SEL считает подпункты:
@@ -114,7 +117,7 @@ lib.sh/pack.sh, голый bash, alt-screen `\e[?1049h`). ERR-trap возвра�
 1. `omt_dryrun` (арг `--dry-run`/`-n`) → `require_not_root` → проверка debian-подобной ОС.
 2. Выбор SSD: `lsblk` → не-`/` маунтпойнты → `ui_menu` (устройство, метка, ФС,
    размер, свободно); write-test `touch`.
-3. `eval "$(conf.py inventory.toml selection.toml)"` → массивы, DESC, дефолты галочек; поиск AppImage.
+3. `eval "$(conf.py inventory.yaml selection.yaml)"` → массивы, DESC, дефолты галочек; поиск AppImage.
 4. Построение групп/подпунктов (`SUBS` = `desc;size;hint;path`, `SUB_ORDER`
    хранит порядок), дефолты из `CHECKBOX_*`, размеры `du -sm --apparent-size`.
 5. `ui_tree` (tui.py или fallback) → раскладка состояний обратно в
