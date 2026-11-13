@@ -3,6 +3,7 @@
 Интерактивный перенос системы **Ubuntu → CachyOS (Arch)** через внешний SSD.
 
 Техническое устройство проекта — [docs/architecture.md](docs/architecture.md).
+Инструкция для ИИ-агента — [skills/os-migrate-tool/SKILL.md](skills/os-migrate-tool/SKILL.md).
 
 ## Что переносит
 
@@ -47,7 +48,8 @@ os-migrate-tool/
 ├── pack.sh  pack-kitty.sh  unpack.sh   # скрипты
 ├── src/                                # lib.sh, tui.py, conf.py, mapping.tsv, exclude.txt
 ├── configs/                            # inventory.yaml, selection.yaml
-├── README.md  SKILL.md                 # самообновляются
+├── README.md                           # самообновляется
+├── skills/os-migrate-tool/SKILL.md     # скилл для ИИ-агента (самообновляется)
 └── archives/
     ├── 2026-11-14_ubuntu.tar.gz    # ЕДИНЫЙ бандл прогона (внутри — сегменты
     │   │                           #  packages/, appimages/, dotfiles/, data/,

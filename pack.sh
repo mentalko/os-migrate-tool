@@ -597,11 +597,11 @@ fi
 
 # ---------- 10. Самообновление инструмента на SSD ----------
 info "Синхронизация инструмента на SSD..."
-TOOL_FILES=(src/lib.sh src/tui.py src/conf.py src/mapping.tsv src/exclude.txt configs/inventory.yaml configs/selection.yaml pack.sh pack-kitty.sh unpack.sh README.md SKILL.md)
+TOOL_FILES=(src/lib.sh src/tui.py src/conf.py src/mapping.tsv src/exclude.txt configs/inventory.yaml configs/selection.yaml skills/os-migrate-tool/SKILL.md pack.sh pack-kitty.sh unpack.sh README.md)
 if (( DRY )); then
     dry "cp ${TOOL_FILES[*]} -> $TOOL_ROOT/"
 else
-    mkdir -p "$TOOL_ROOT/src" "$TOOL_ROOT/configs"
+    mkdir -p "$TOOL_ROOT/src" "$TOOL_ROOT/configs" "$TOOL_ROOT/skills/os-migrate-tool"
     for f in "${TOOL_FILES[@]}"; do cp "$TOOL_DIR/$f" "$TOOL_ROOT/$f"; done
     ok "скопировано: ${TOOL_FILES[*]}"
 fi
