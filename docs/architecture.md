@@ -24,16 +24,18 @@ pack.sh ──► SSD/os-migrate-tool/ ──► unpack.sh
 | `unpack.sh` | Восстановление: выбор прогона и компонентов, установка пакетов, распаковка |
 | `lib.sh` | Общий код: сообщения, dry-run, root-чек, ERR-trap, выбор движка TUI, bash-fallback TUI |
 | `tui.py` | TUI на curses (stdlib python): режимы TREE / MENU / CHECK |
-| `inventory.yaml` | Полный инвентарь: группы `group_*` с секциями + `desc:` |
-| `selection.yaml` | Галочки по умолчанию: `group_<имя>.on` + вложенные пути |
-| `conf.py` | Мост конфига в bash: `eval "$(conf.py inv sel)"`; мини-YAML на stdlib |
-| `mapping.tsv` | Маппинг apt-пакетов → pacman/yay-команды |
-| `exclude.txt` | Исключения для tar (кэши, node_modules, Steam…) |
+| `src/lib.sh` | Общий код: сообщения, dry-run, root-чек, ERR-trap, выбор TUI-движка |
+| `src/tui.py` | TUI на curses: TREE / MENU / CHECK |
+| `src/conf.py` | Мост конфига в bash: `eval "$(conf.py inv sel)"`; мини-YAML на stdlib |
+| `src/mapping.tsv` | Маппинг apt-пакетов → pacman/yay |
+| `src/exclude.txt` | Исключения tar (кэши, node_modules, Steam…) |
+| `configs/inventory.yaml` | Полный инвентарь: группы `group_*` с секциями + `desc:` |
+| `configs/selection.yaml` | Галочки по умолчанию: `group_<имя>.on` + вложенные пути |
 | `pack-kitty.sh` | Лаунчер: pack.sh в окне kitty с логом сессии для агента |
 
 ## Конфигурация: inventory.yaml + selection.yaml
 
-Два YAML-файла; парсит `conf.py` и печатает bash-код для `eval` в pack.sh:
+Два YAML-файла в `configs/`; парсит `src/conf.py` и печатает bash-код для `eval` в pack.sh:
 массивы путей (`AGENT_DIRS_ARR`, `DOT_ARR`, `AGENT_SESSIONS_ARR`, …), assoc
 `DESC` (описания), `TUI_GRP_STATE` (ON/OFF по группам), `TUI_SEL`
 (`группа|путь` → ON/OFF), `COMPRESS_ESTIMATE`. Значения квотируются
@@ -46,14 +48,14 @@ true/false/числа/строки, комментарии только целы
 срезается; anchors/flow/multi-line не поддерживаются. Формат наш — сложный
 YAML не нужен. Группы — ключи `group_<имя>` в порядке файла.
 
-**inventory.yaml** — полный инвентарь (несуществующие пути авто-скип):
+**configs/inventory.yaml** — полный инвентарь (несуществующие пути авто-скип):
 `group_appimages.dirs` — где искать AppImage; `group_dotfiles` — `dirs`+`files`;
 `group_agents` — `home`/`config`/`sessions` (сессии, покрытые родителями из
 home/config, conf.py отбрасывает — covered-check, двойной упаковки нет);
 `group_browsers/data/toolchain/flatpak/tmp/extra` — `paths`; `desc:` —
 описания пунктов; `meta.compress_estimate`.
 
-**selection.yaml** — галочки по умолчанию, дерево повторяет чеклист:
+**configs/selection.yaml** — галочки по умолчанию, дерево повторяет чеклист:
 ```yaml
 group_agents:
   on: true
@@ -123,7 +125,7 @@ lib.sh/pack.sh, голый bash, alt-screen `\e[?1049h`). ERR-trap возвра�
 1. `omt_dryrun` (арг `--dry-run`/`-n`) → `require_not_root` → проверка debian-подобной ОС.
 2. Выбор SSD: `lsblk` → не-`/` маунтпойнты → `ui_menu` (устройство, метка, ФС,
    размер, свободно); write-test `touch`.
-3. `eval "$(conf.py inventory.yaml selection.yaml)"` → массивы, DESC, дефолты галочек; поиск AppImage.
+3. `eval "$(src/conf.py configs/inventory.yaml configs/selection.yaml)"` → массивы, DESC, дефолты галочек; поиск AppImage.
 4. Построение групп/подпунктов (`SUBS` = `desc;size;hint;path`, `SUB_ORDER`
    хранит порядок), дефолты из `CHECKBOX_*`, размеры `du -sm --apparent-size`.
 5. `ui_tree` (tui.py или fallback) → раскладка состояний обратно в

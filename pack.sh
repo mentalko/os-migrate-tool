@@ -5,7 +5,7 @@ set -euo pipefail
 
 TOOL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck disable=SC1091
-source "$TOOL_DIR/lib.sh"
+source "$TOOL_DIR/src/lib.sh"
 
 # ---------- 0. --dry-run ----------
 omt_dryrun "$@"
@@ -48,9 +48,9 @@ ok "SSD: $SSD (свободно $(df -h --output=avail "$SSD" | tail -1))"
 # ---------- 3. Конфиг: inventory.yaml (инвентарь) + selection.yaml (галочки) ----------
 # Парсинг на python (мини-YAML в conf.py, stdlib): печатает bash-код, eval применяет.
 command -v python3 >/dev/null 2>&1 || die "нужен python3 — на нём парсинг конфига и TUI"
-[[ -f "$TOOL_DIR/inventory.yaml" && -f "$TOOL_DIR/selection.yaml" ]] \
-    || die "нет конфига: inventory.yaml / selection.yaml рядом с pack.sh"
-CONF_OUT="$(python3 "$TOOL_DIR/conf.py" "$TOOL_DIR/inventory.yaml" "$TOOL_DIR/selection.yaml")" \
+[[ -f "$TOOL_DIR/configs/inventory.yaml" && -f "$TOOL_DIR/configs/selection.yaml" ]] \
+    || die "нет конфига: configs/inventory.yaml / configs/selection.yaml"
+CONF_OUT="$(python3 "$OMT_LIB_DIR/conf.py" "$TOOL_DIR/configs/inventory.yaml" "$TOOL_DIR/configs/selection.yaml")" \
     || die "ошибка конфига: см. сообщение выше"
 eval "$CONF_OUT"
 : "${COMPRESS_ESTIMATE:=55}"
@@ -68,7 +68,7 @@ done
 hM() { awk -v m="$1" 'BEGIN{ if (m>=1024) printf "%.1fG", m/1024; else printf "%dM", m }'; }
 m_of() { local p="$1"; [[ "$p" == /* ]] || p="$HOME/$p"; du -sm --apparent-size "$p" 2>/dev/null | cut -f1; }
 
-desc_of() { # описание из inventory.yaml [desc]; $1=ключ (путь/имя AppImage), $2=fallback
+desc_of() { # описание из configs/inventory.yaml (desc:); $1=ключ (путь/имя AppImage), $2=fallback
     local d="${DESC[$1]:-}"
     [[ -n "$d" ]] && { echo "$d"; return 0; }
     echo "$2"
@@ -484,7 +484,7 @@ if (( ! DRY )); then
     done
     printf 'Documents/os-migrate-tool/\n' >> "$EXCL_DEDUP"
 fi
-EXCL_ALL="$TOOL_DIR/exclude.txt"
+EXCL_ALL="$TOOL_DIR/src/exclude.txt"
 
 seg_tar() { # $1=каталог сегмента в бандле, $2=exclude-файл (пусто = без), $3=пути через \n (от $HOME)
     local seg="$1" excl="$2" list="$3"
@@ -597,11 +597,11 @@ fi
 
 # ---------- 10. Самообновление инструмента на SSD ----------
 info "Синхронизация инструмента на SSD..."
-TOOL_FILES=(lib.sh tui.py conf.py inventory.yaml selection.yaml pack.sh pack-kitty.sh unpack.sh mapping.tsv exclude.txt README.md SKILL.md)
+TOOL_FILES=(src/lib.sh src/tui.py src/conf.py src/mapping.tsv src/exclude.txt configs/inventory.yaml configs/selection.yaml pack.sh pack-kitty.sh unpack.sh README.md SKILL.md)
 if (( DRY )); then
     dry "cp ${TOOL_FILES[*]} -> $TOOL_ROOT/"
 else
-    mkdir -p "$TOOL_ROOT"
+    mkdir -p "$TOOL_ROOT/src" "$TOOL_ROOT/configs"
     for f in "${TOOL_FILES[@]}"; do cp "$TOOL_DIR/$f" "$TOOL_ROOT/$f"; done
     ok "скопировано: ${TOOL_FILES[*]}"
 fi

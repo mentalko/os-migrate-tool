@@ -18,7 +18,7 @@
 | `toolchain` | rustup/nvm/bun/npm/vscode (по умолчанию off — переустановить) | → $HOME |
 | `extra` | paperless-ngx, Sync, v2rayN (группа off, v2rayN включен точечно) | → $HOME |
 
-Полный список путей и их описания — `inventory.yaml`; что отмечено — `selection.yaml`.
+Полный список путей и их описания — `configs/inventory.yaml`; что отмечено — `configs/selection.yaml`.
 
 ## Использование
 
@@ -44,7 +44,10 @@ bash unpack.sh --dry-run agents                        # отчёт без из�
 
 ```
 os-migrate-tool/
-├── lib.sh tui.py conf.py inventory.yaml selection.yaml pack.sh pack-kitty.sh unpack.sh mapping.tsv exclude.txt README.md SKILL.md  # самообновляются
+├── pack.sh  pack-kitty.sh  unpack.sh   # скрипты
+├── src/                                # lib.sh, tui.py, conf.py, mapping.tsv, exclude.txt
+├── configs/                            # inventory.yaml, selection.yaml
+├── README.md  SKILL.md                 # самообновляются
 └── archives/
     ├── 2026-11-14_ubuntu.tar.gz    # ЕДИНЫЙ бандл прогона (внутри — сегменты
     │   │                           #  packages/, appimages/, dotfiles/, data/,
@@ -61,20 +64,20 @@ os-migrate-tool/
 `tar --ignore-zeros`. Выборочная распаковка прокручивает бандл (медленно),
 поэтому домашние сегменты извлекаются **одним проходом tar**.
 
-## lib.sh + tui.py + conf.py — общий код и TUI-движок
+## src/ — общий код и TUI-движок
 
-Хелперы (сообщения, dry-run, проверка root) — в `lib.sh`; TUI — в `tui.py`
+Хелперы (сообщения, dry-run, проверка root) — в `src/lib.sh`; TUI — в `src/tui.py`
 на **curses (stdlib python, ничего устанавливать не нужно)**: альтернативный
 экран (без мусора в скроллбеке), скролл вьюпорта при списках длиннее
 терминала, корректная перерисовка после resize. Конфиг в bash переносит
-`conf.py` (мини-YAML на stdlib). bash-TUI в `lib.sh` — fallback, если
+`src/conf.py` (мини-YAML на stdlib). bash-TUI в `src/lib.sh` — fallback, если
 curses недоступен.
 
 ## Конфигурация: inventory.yaml + selection.yaml (YAML-подмножество, без хардкода в скриптах)
 
-Два файла, парсит `conf.py` (мини-YAML на stdlib — отступы 2 пробела, списки `- `, комментарии целыми строками):
+Два файла в `configs/`, парсит `src/conf.py` (мини-YAML на stdlib — отступы 2 пробела, списки `- `, комментарии целыми строками):
 
-**`inventory.yaml`** — полный инвентарь; группа = `group_<имя>`, внутри — секции
+**`configs/inventory.yaml`** — полный инвентарь; группа = `group_<имя>`, внутри — секции
 (`home`/`config`/`sessions` у агентов, `dirs`+`files` у dotfiles, `paths` у остальных),
 `[desc]` → секция `desc:` — описания пунктов (что в каталоге / что за программы).
 Конфиг — **полный инвентарь**: всё видно в чеклисте, несуществующие пути

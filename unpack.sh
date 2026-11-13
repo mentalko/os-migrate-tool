@@ -9,7 +9,7 @@ set -euo pipefail
 
 TOOL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck disable=SC1091
-source "$TOOL_DIR/lib.sh"
+source "$TOOL_DIR/src/lib.sh"
 
 # ---------- 0. --dry-run ----------
 omt_dryrun "$@"
@@ -181,14 +181,14 @@ for s in "${SEL[@]}"; do
                 case "$status" in
                     skip) ok "  $pkg — skip (не переносится)";;
                     native|aur)
-                        cmd=$(awk -F'\t' -v p="$pkg" '$1==p{print $3}' "$TOOL_DIR/mapping.tsv")
+                        cmd=$(awk -F'\t' -v p="$pkg" '$1==p{print $3}' "$TOOL_DIR/src/mapping.tsv")
                         [[ -n "$cmd" && "$cmd" != "-" ]] && { echo "  \$ $cmd"; (( DRY )) && { dry "$cmd — выполнено"; installed=$((installed+1)); } || { eval "$cmd" && installed=$((installed+1)) || warn "  $pkg — установка не удалась"; }; }
                         ;;
                 esac
-            done < "$TOOL_DIR/mapping.tsv"
+            done < "$TOOL_DIR/src/mapping.tsv"
             # что в apt-list, но нет в mapping
             grep -vE "^#|^$" "$META/packages/apt-list.txt" | awk '{print $1}' | while read -r p; do
-                awk -F'\t' -v p="$p" '$1==p{f=1} END{exit !f}' "$TOOL_DIR/mapping.tsv" || echo "$p" >> "$MISSING.tmp"
+                awk -F'\t' -v p="$p" '$1==p{f=1} END{exit !f}' "$TOOL_DIR/src/mapping.tsv" || echo "$p" >> "$MISSING.tmp"
             done
             [[ -f "$MISSING.tmp" ]] && { cat "$MISSING.tmp" >> "$MISSING"; rm "$MISSING.tmp"; }
             # flatpak
