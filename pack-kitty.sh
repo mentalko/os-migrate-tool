@@ -19,8 +19,11 @@ STAMP="$(date +%Y%m%d_%H%M%S)"
 LOG="/tmp/omt-pack-$STAMP.ts"
 RCF="/tmp/omt-pack-$STAMP.rc"
 
-# аргументы pack.sh пробрасываем как есть; %q — безопасное квотирование для sh
-inner="bash $(printf '%q ' "$TOOL_DIR/pack.sh")$([[ $# -gt 0 ]] && printf '%q ' "$@")"
+# аргументы pack.sh пробрасываем как есть; %q — безопасное квотирование для sh.
+# ВАЖНО: без "|| true" упадёт под set -e при нуле аргументов (пустой &&-список).
+ARGS=""
+[[ $# -gt 0 ]] && ARGS=" $(printf '%q' "$@")" || true
+inner="bash $(printf '%q' "$TOOL_DIR/pack.sh")$ARGS"
 
 # env-передача вместо кавычечных упражнений: kitty наследует окружение
 OMT_INNER="$inner" OMT_LOG="$LOG" OMT_RCF="$RCF" kitty \
