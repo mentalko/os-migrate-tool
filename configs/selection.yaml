@@ -43,6 +43,11 @@ group_agents:
   .config/CherryStudio: false
   .config/warp-terminal: false
 
+group_appdata:
+  on: true                  # Throne, обои; Telegram отключен (решение владельца)
+  .local/share/TelegramDesktop: false
+  .local/share/Throne/config: true
+
 group_browsers:
   on: true                  # Chrome + Firefox
 

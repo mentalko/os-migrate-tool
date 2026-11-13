@@ -25,6 +25,10 @@ group_dotfiles:             # группа dotfiles: каталоги + отде
     - .local/share/fonts
     - .local/bin
     - .local/share/applications
+    - .local/share/backgrounds  # обои рабочего стола
+    - .pki                    # NSS certdb (сертификаты)
+    - .docker                 # конфиг docker CLI
+    - .android                # adb-ключи
   files:
     - .zshrc
     - .bashrc
@@ -33,6 +37,8 @@ group_dotfiles:             # группа dotfiles: каталоги + отде
     - .gitignore_global
     - .bash_history
     - .zsh_history
+    - .npmrc
+    - .yarnrc
 
 group_agents:               # группа agents: данные ИИ-агентов
   home:                     # данные в home
@@ -62,6 +68,11 @@ group_agents:               # группа agents: данные ИИ-агент�
     - .config/warp-terminal
   sessions:                 # сессии: покрытые home/config отбрасываются conf.py
     - .local/share/opencode # opencode.db, auth, snapshot; сессии zcode — в ~/.zcode
+
+group_appdata:              # данные десктоп-приложений, не покрытые другими группами
+  paths:
+    - .local/share/TelegramDesktop   # сессия Telegram (tdata)
+    - .local/share/Throne/config     # конфиги прокси Throne (core-дампы режутся)
 
 group_browsers:             # профили целиком
   paths:
@@ -108,6 +119,14 @@ desc:
   .local/share/fonts: установленные шрифты
   .local/bin: личные скрипты и бинарники
   .local/share/applications: свои .desktop-лаунчеры
+  .local/share/backgrounds: обои рабочего стола
+  .pki: сертификаты NSS (certdb)
+  .docker: конфиг docker CLI (registry-логины)
+  .android: adb-ключи и настройки
+  .npmrc: конфиг npm (может содержать токен!)
+  .yarnrc: конфиг yarn
+  .local/share/TelegramDesktop: Telegram: сессия (tdata) — без переавторизации
+  .local/share/Throne/config: Throne (прокси): конфиги и профиль
   .zshrc: конфиг zsh
   .bashrc: конфиг bash
   .profile: переменные окружения при входе

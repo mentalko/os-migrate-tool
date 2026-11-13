@@ -24,6 +24,23 @@ tar:
   - .zcode/cli/crash          # крэш-дампы ZCode
   - .zcode/tmp                # временные файлы ZCode
   - .local/share/opencode/log # логи opencode
+  # --- кэши браузеров/IDE (восстанавливаются сами) ---
+  - .config/Code/CachedExtensionVSIXs       # скачанные VSIX, докачаются
+  - .config/google-chrome/extensions_crx_cache
+  - .config/google-chrome/component_crx_cache
+  - .config/google-chrome/optimization_guide_model_store
+  - .config/google-chrome/WasmTtsEngine
+  - .config/google-chrome/Safe Browsing
+  - .config/google-chrome/GrShaderCache
+  - .config/google-chrome/Default/Service Worker
+  - .config/google-chrome/Default/GPUCache
+  - .config/microsoft-edge/Default/Service Worker
+  - .config/microsoft-edge/Default/GPUCache
+  - .var/app/*/cache          # flatpak-кэши (каталог 'cache' без точки)
+  - .zcode/v2/logs            # логи ZCode v2
+  - ".local/share/Throne/config/core*"   # core-дамп Throne (192M)
+  # --- старьё ---
+  - ".local/bin/agy.*.old"    # старые копии бинарника
   # --- тяжёлое и перекачиваемое ---
   - .local/share/Steam        # игры Steam: сотни ГБ, клиент перекачает сам
 

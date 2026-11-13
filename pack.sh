@@ -91,7 +91,7 @@ SUB_KEYS() { # теги подпунктов группы в порядке до
     return 0
 }
 
-MG_GROUPS=(packages appimages dotfiles data agents browsers)
+MG_GROUPS=(packages appimages dotfiles data agents appdata browsers)
 if arr_nonempty "${FLATPAK_ARR[@]}";   then MG_GROUPS+=(flatpak);   fi
 if arr_nonempty "${TOOLCHAIN_ARR[@]}"; then MG_GROUPS+=(toolchain); fi
 if arr_nonempty "${TMP_ARR[@]}";       then MG_GROUPS+=(tmp);       fi
@@ -161,6 +161,7 @@ GRP_DESC[dotfiles]="конфиги, ssh, шрифты, история (без а
 GRP_DESC[agents]="AI-агенты: сессии, задачи, скиллы + их данные в .config";       GRP_SIZE[agents]=0
 GRP_DESC[browsers]="профили браузеров (пароли, куки, расширения)";                GRP_SIZE[browsers]=0
 GRP_DESC[data]="данные: ~/Documents и т.п.";                 GRP_SIZE[data]=0
+GRP_DESC[appdata]="Telegram (tdata), Throne, обои";          GRP_SIZE[appdata]=0
 GRP_DESC[flatpak]="данные flatpak-приложений (.var)";        GRP_SIZE[flatpak]=0
 GRP_DESC[toolchain]="тулчейны: rustup/nvm/bun/npm/vscode";   GRP_SIZE[toolchain]=0
 GRP_DESC[tmp]="пересоздаваемые данные (/tmp и т.п.)";        GRP_SIZE[tmp]=0
@@ -444,10 +445,10 @@ warn "Сырой объём: $(hM "$total")   оценка после tar.gz: ~$
 
 info "Планируемые архивы:"
 declare -A PLAN_ROWS=( [packages]="packages/" [appimages]="appimages/" [dotfiles]="dotfiles/" [data]="data/" \
-            [agents]="agents/" [browsers]="browsers/" [flatpak]="flatpak/" \
+            [agents]="agents/" [appdata]="appdata/" [browsers]="browsers/" [flatpak]="flatpak/" \
             [toolchain]="toolchain/" [tmp]="tmp/" [extra]="extra/" )
 plan_total=0
-for grp in packages appimages dotfiles data agents browsers flatpak toolchain tmp extra; do
+for grp in packages appimages dotfiles data agents appdata browsers flatpak toolchain tmp extra; do
     [[ -n "${GRP_SIZE_PLAN[$grp]:-}" ]] || continue
     plan_total=$(( plan_total + ${GRP_SIZE_PLAN[$grp]} ))
     echo "    ${PLAN_ROWS[$grp]}  —  $(hM "${GRP_SIZE_PLAN[$grp]}")"
@@ -529,6 +530,8 @@ if [[ -n "${GRP_SIZE_PLAN[packages]:-}" ]]; then
         dry "dconf dump / > packages/dconf.dump"
         dry "crontab -l > packages/crontab.txt"
         dry "systemctl --user list-unit-files > packages/systemd-user-units.txt"
+        dry "npm ls -g --depth=0 > packages/npm-global.txt"
+        dry "pip3 list --user > packages/pip-user.txt"
     else
         dpkg --get-selections > "$META/packages/apt-list.txt"
         command -v flatpak >/dev/null && flatpak list --app --columns=application > "$META/packages/flatpak-list.txt" || true
@@ -536,6 +539,8 @@ if [[ -n "${GRP_SIZE_PLAN[packages]:-}" ]]; then
         command -v dconf >/dev/null && dconf dump / > "$META/packages/dconf.dump" || true
         crontab -l > "$META/packages/crontab.txt" 2>/dev/null || true
         systemctl --user list-unit-files --state=enabled --no-legend --plain > "$META/packages/systemd-user-units.txt" || true
+        command -v npm >/dev/null && npm ls -g --depth=0 > "$META/packages/npm-global.txt" 2>/dev/null || true
+        command -v pip3 >/dev/null && pip3 list --user > "$META/packages/pip-user.txt" 2>/dev/null || true
         ( cd "$META" && tar -cz packages ) >> "$BUNDLE"
         ok "packages/ — дописан в бандл"
     fi
@@ -562,6 +567,7 @@ fi
 [[ -n "${GRP_SEL[dot]:-}" ]]       && seg_tar dotfiles   "$EXCL_DOTDATA" "${GRP_SEL[dot]}"
 [[ -n "${GRP_SEL[data]:-}" ]]      && seg_tar data       "$EXCL_DOTDATA" "${GRP_SEL[data]}"
 [[ -n "${GRP_SEL[agent]:-}" ]]     && seg_tar agents     "$EXCL_PATTERNS" "${GRP_SEL[agent]}"
+[[ -n "${GRP_SEL[appdata]:-}" ]]   && seg_tar appdata    "$EXCL_PATTERNS" "${GRP_SEL[appdata]}"
 [[ -n "${GRP_SEL[browser]:-}" ]]   && seg_tar browsers   "$EXCL_PATTERNS" "${GRP_SEL[browser]}"
 [[ -n "${GRP_SEL[flatpak]:-}" ]]   && seg_tar flatpak    "$EXCL_PATTERNS" "${GRP_SEL[flatpak]}"
 [[ -n "${GRP_SEL[toolchain]:-}" ]] && seg_tar toolchain  "$EXCL_PATTERNS" "${GRP_SEL[toolchain]}"
@@ -584,7 +590,7 @@ write_paths() {
         done <<<"${GRP_SEL[appimg]}"
     fi
     local spec grp seg
-    for spec in "dot dotfiles" "data data" "agent agents" "browser browsers" \
+    for spec in "dot dotfiles" "data data" "agent agents" "appdata appdata" "browser browsers" \
                 "flatpak flatpak" "toolchain toolchain" "tmp tmp" "extra extra"; do
         read -r grp seg <<<"$spec"
         [[ -n "${GRP_SEL[$grp]:-}" ]] || continue
