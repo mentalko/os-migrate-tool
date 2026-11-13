@@ -11,9 +11,14 @@
 | `packages` | списки apt/flatpak/VS Code/dconf/cron/systemd-user | переустановка через pacman/yay по `mapping.tsv` |
 | `appimages` | `*.AppImage` из ~/Applications, ~/bin, ~/Desktop | → `~/Applications` |
 | `dotfiles` | ~/.config, ~/.ssh, ~/.gnupg, shell rc, шрифты, история | → $HOME |
-| `data` | ~/Documents, Downloads, Desktop, Pictures | → $HOME |
-| `agents` | ~/.qoder, ~/.codex, ~/.claude, .agents/.jcode/.zcode/…, [10] SKILLS | → $HOME |
-| `browsers` | профили Chrome/Firefox/Brave/Chromium целиком (по умолчанию off) | → $HOME |
+| `data` | не-скрытые каталоги home: ~/Documents, Downloads, Desktop, Pictures, ~/bin | → $HOME |
+| `agents` | данные ИИ-агентов — инвентарь в `inventory.yaml`; по умолчанию отмечены только zcode + opencode (сессии, конфиги) | → $HOME |
+| `browsers` | профили Chrome/Firefox целиком (по умолчанию on) | → $HOME |
+| `flatpak` | профили flatpak-приложений (~/.var) | → $HOME |
+| `toolchain` | rustup/nvm/bun/npm/vscode (по умолчанию off — переустановить) | → $HOME |
+| `extra` | paperless-ngx, Sync, v2rayN (группа off, v2rayN включен точечно) | → $HOME |
+
+Полный список путей и их описания — `inventory.yaml`; что отмечено — `selection.yaml`.
 
 ## Использование
 
@@ -38,7 +43,7 @@ bash unpack.sh --dry-run dotfiles.tar.gz               # отчёт без из�
 
 ```
 os-migrate-tool/
-├── lib.sh tui.py conf.py inventory.yaml selection.yaml pack.sh unpack.sh mapping.tsv exclude.txt README.md SKILL.md  # самообновляются
+├── lib.sh tui.py conf.py inventory.yaml selection.yaml pack.sh pack-kitty.sh unpack.sh mapping.tsv exclude.txt README.md SKILL.md  # самообновляются
 └── archives/
     ├── 2026-11-09_ubuntu/      # прогон = дата_исходная-ОС
     │   ├── manifest.txt        # дерево + sha256
@@ -48,13 +53,14 @@ os-migrate-tool/
     └── latest -> 2026-11-09_ubuntu   # или latest.txt, если ФС не умеет симлинки
 ```
 
-## lib.sh + tui.py — общий код и TUI-движок
+## lib.sh + tui.py + conf.py — общий код и TUI-движок
 
 Хелперы (сообщения, dry-run, проверка root) — в `lib.sh`; TUI — в `tui.py`
 на **curses (stdlib python, ничего устанавливать не нужно)**: альтернативный
 экран (без мусора в скроллбеке), скролл вьюпорта при списках длиннее
-терминала, корректная перерисовка после resize. Если python3 недоступен —
-автоматический fallback на встроенный bash-TUI (lib.sh).
+терминала, корректная перерисовка после resize. Конфиг в bash переносит
+`conf.py` (мини-YAML на stdlib). bash-TUI в `lib.sh` — fallback, если
+curses недоступен.
 
 ## Конфигурация: inventory.yaml + selection.yaml (YAML-подмножество, без хардкода в скриптах)
 
@@ -86,6 +92,7 @@ group_extra:
 
 - `status = native` → есть в pacman-репо
 - `status = aur` → ставится через yay
+- `status = manual` → в репозиториях нет, ставится руками (AppImage/сайт)
 - `status = skip` → не переносится (snapd, ubuntu-*, ...)
 - Нет строки в мапинге → пакет **не ставится молча**, попадает в отчёт `missing-mapping.txt`
 
