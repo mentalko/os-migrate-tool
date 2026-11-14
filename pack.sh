@@ -128,9 +128,15 @@ for p in "${AGENT_SESSIONS_ARR[@]}"; do
     [[ -n "$p" && -e "$HOME/$p" ]] && add_sub agents "agent:$p" "$(desc_of "$p" "сессии: $p")" "$(m_of "$HOME/$p")" "~/$p — сессии (agents.sessions)" "$p"
 done
 GRP_HAS_SUB[browsers]=1
-for p in "${BROWSER_ARR[@]}"; do
+for p in "${BROWSERS_ARR[@]}"; do
     [[ -n "$p" && -e "$HOME/$p" ]] && add_sub browsers "browser:$p" "$(desc_of "$p" "браузер: $p")" "$(m_of "$HOME/$p")" "~/$p|на Cachy понадобится пароль старого keyring" "$p"
 done
+if arr_nonempty "${APPDATA_ARR[@]}"; then
+    GRP_HAS_SUB[appdata]=1
+    for p in "${APPDATA_ARR[@]}"; do
+        [[ -n "$p" && -e "$HOME/$p" ]] && add_sub appdata "appdata:$p" "$(desc_of "$p" "данные приложения: $p")" "$(m_of "$HOME/$p")" "~/$p" "$p"
+    done
+fi
 GRP_HAS_SUB[data]=1
 for p in "${DATA_ARR[@]}"; do
     [[ -n "$p" && -e "$HOME/$p" ]] && add_sub data "data:$p" "$(desc_of "$p" "данные: $p")" "$(m_of "$HOME/$p")" "~/$p" "$p"
@@ -259,11 +265,12 @@ _ui_tree_python() { # tui.py пишет финальные состояния в
     fi
     (( _rc == 0 )) || die "tui: дерево завершилось с ошибкой ($_rc)"
     while IFS= read -r line; do
-        case "$line" in
-            G\;*)   key="${line#G;}";   GRP_STATE[${key%;*}]="${line##*;}";;
-            SEC\;*) key="${line#SEC;}"; PROG_SEC_STATE[${key%;*}]="${line##*;}";;
-            T\;*)   key="${line#T;}";   PROG_TOOL_STATE[${key%;*}]="${line##*;}";;
-            S\;*)   key="${line#S;}";   SUB_STATE[${key%;*}]="${line##*;}";;
+        IFS=';' read -r typ f1 f2 f3 f4 <<<"$line"
+        case "$typ" in
+            G)   GRP_STATE["$f1"]="$f2";;
+            SEC) PROG_SEC_STATE["$f1|$f2"]="$f3";;
+            T)   PROG_TOOL_STATE["$f1|$f2|$f3"]="$f4";;
+            S)   SUB_STATE["$f1|$f2"]="$f3";;
         esac
     done < "$state_file"
     rm -f "$state_file"
@@ -547,7 +554,7 @@ if (( ! DRY )); then
     printf '%s\n' "${EXCL_PATTERNS_ARR[@]}" > "$EXCL_PATTERNS"
     EXCL_DEDUP="$META/.exclude-dedup"
     : > "$EXCL_DEDUP"
-    for p in "${AGENT_DIRS_ARR[@]}" "${AGENT_CONF_ARR[@]}" "${BROWSER_ARR[@]}" "${FLATPAK_ARR[@]}" "${TOOLCHAIN_ARR[@]}"; do
+    for p in "${AGENT_DIRS_ARR[@]}" "${AGENT_CONF_ARR[@]}" "${BROWSERS_ARR[@]}" "${FLATPAK_ARR[@]}" "${TOOLCHAIN_ARR[@]}"; do
         [[ -n "$p" ]] && printf '%s/\n' "$p" >> "$EXCL_DEDUP"
     done
     printf 'Documents/os-migrate-tool/\n' >> "$EXCL_DEDUP"

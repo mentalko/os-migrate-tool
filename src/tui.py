@@ -12,8 +12,13 @@
   CHECK   плоский чеклист
 
 Протокол stdin (построчно, разделитель ';', hint: '|' = перенос строки):
-  TREE:  G;<group>;<desc>;<sizeMB>;<ON|OFF>
-         S;<group>;<tag>;<desc>;<sizeMB>;<ON|OFF>;<hint>
+  TREE:  G;<group>;<desc>;<sizeMB>;<ON|OFF>[;<state>]
+         SEC;<group>;<name>;<desc>;<sizeMB>;<ON|OFF>[;<path>[;<state>]]
+         T;<group>;<sec>;<tag>;<desc>;<sizeMB>;<ON|OFF>;<hint>;<path>[;<state>]
+         S;<group>;<tag>;<desc>;<sizeMB>;<ON|OFF>;<hint>;<path>[;<state>]
+  state — необязательное поле распаковки: 'exists' (цель уже есть в $HOME,
+  рисуется жёлтым ●) | 'new' (будет создан, зелёный ○) | '' (pack — без маркера).
+  У SEC с path нижняя панель показывает путь и автосводку «что внутри сейчас».
   MENU:  M;<tag>;<desc>;<hint>
   CHECK: C;<tag>;<desc>;<ON|OFF>;<hint>
 Заголовок окна — переменная окружения OMT_TUI_TITLE.
@@ -79,22 +84,28 @@ def parse_stdin():
         try:
             if mode == 'TREE' and p[0] == 'G':
                 groups.append({'g': p[1], 'desc': p[2], 'size': int(p[3] or 0),
-                               'on': p[4] == 'ON', 'expanded': False})
+                               'on': p[4] == 'ON', 'expanded': False,
+                               'state': p[5] if len(p) > 5 else ''})
             elif mode == 'TREE' and p[0] == 'SEC':
-                # 3-й уровень: секция внутри группы (напр. programs → npm/uv/pipx/bin)
+                # 3-й уровень: секция внутри группы (programs → менеджеры;
+                # unpack → верхнеуровневый путь сегмента, path = цель в $HOME)
                 secs.setdefault(p[1], []).append(
                     {'g': p[1], 'name': p[2], 'desc': p[3], 'size': int(p[4] or 0),
-                     'on': p[5] == 'ON', 'expanded': False})
+                     'on': p[5] == 'ON', 'expanded': False,
+                     'path': p[6] if len(p) > 6 else '',
+                     'state': p[7] if len(p) > 7 else ''})
             elif mode == 'TREE' and p[0] == 'T':
                 sectools.setdefault(f"{p[1]}|{p[2]}", []).append(
                     {'tag': p[3], 'desc': p[4], 'size': int(p[5] or 0),
                      'on': p[6] == 'ON', 'hint': p[7] if len(p) > 7 else '',
-                     'path': p[8] if len(p) > 8 else ''})
+                     'path': p[8] if len(p) > 8 else '',
+                     'state': p[9] if len(p) > 9 else ''})
             elif mode == 'TREE' and p[0] == 'S':
                 subs.setdefault(p[1], []).append(
                     {'tag': p[2], 'desc': p[3], 'size': int(p[4] or 0),
                      'on': p[5] == 'ON', 'hint': p[6] if len(p) > 6 else '',
-                     'path': p[7] if len(p) > 7 else ''})
+                     'path': p[7] if len(p) > 7 else '',
+                     'state': p[8] if len(p) > 8 else ''})
             elif mode == 'MENU' and p[0] == 'M':
                 items.append({'tag': p[1], 'desc': p[2],
                               'hint': p[3] if len(p) > 3 else ''})
@@ -113,6 +124,16 @@ def parse_stdin():
 
 def fmt_m(m):
     return f"{m / 1024:.1f}G" if m >= 1024 else f"{m}M"
+
+
+def state_mark(st):
+    """Маркер существования цели (распаковка): ● уже есть — жёлтый,
+    ○ будет создан — зелёный, '' — без маркера (pack)."""
+    if st == 'exists':
+        return '●', 2
+    if st == 'new':
+        return '○', 3
+    return '', 0
 
 
 # ---------- модель TREE ----------
@@ -141,13 +162,13 @@ def tree_total(groups, subs, secs, sectools):
     t = 0
     for g in groups:
         g_secs = secs.get(g['g'])
-        if g_secs:                     # 3-й уровень: сумма по тулам секций
-            for sec in g_secs:
+        if g_secs:                     # 3-й уровень: секция ON = вся (её размер),
+            for sec in g_secs:         # OFF — сумма выбранных тулов/подпутей
                 tools = sectools.get(f"{sec['g']}|{sec['name']}", [])
-                if tools:
-                    t += sum(x['size'] for x in tools if x['on'])
-                elif sec['on']:
+                if sec['on']:
                     t += sec['size']
+                elif tools:
+                    t += sum(x['size'] for x in tools if x['on'])
         else:
             ss = subs.get(g['g'])
             if ss:
@@ -157,7 +178,7 @@ def tree_total(groups, subs, secs, sectools):
     return t
 
 
-def toggle(g, s, subs, sec=None, tools=None):
+def toggle(g, s, subs, sec=None, tools=None, secs=None, sectools=None):
     if s is not None:                  # тул
         s['on'] = not s['on']
         return
@@ -170,9 +191,9 @@ def toggle(g, s, subs, sec=None, tools=None):
     g['on'] = not g['on']
     for x in ss:
         x['on'] = g['on']
-    for sec in secs.get(g['g'], []):
+    for sec in (secs or {}).get(g['g'], []):
         sec['on'] = g['on']
-        for x in sectools.get(f"{sec['g']}|{sec['name']}", []):
+        for x in (sectools or {}).get(f"{sec['g']}|{sec['name']}", []):
             x['on'] = g['on']
 
 
@@ -189,6 +210,38 @@ class Ctx:
         self.sectools = sectools or {}
         self.cur = 0
         self.top = 0
+        self.has_states = self._any_state()
+
+    def _any_state(self):
+        """Есть ли хоть один маркер существования (для легенды в шапке)."""
+        for g in self.groups:
+            if g.get('state'):
+                return True
+            for s in self.subs.get(g['g'], []):
+                if s.get('state'):
+                    return True
+            for sec in self.secs.get(g['g'], []):
+                if sec.get('state'):
+                    return True
+                for t in self.sectools.get(f"{sec['g']}|{sec['name']}", []):
+                    if t.get('state'):
+                        return True
+        return False
+
+    def _state_counts(self, g):
+        """Сколько верхнеуровневых пунктов группы уже есть / будет создано."""
+        ne = nn = 0
+        for s in self.subs.get(g['g'], []):
+            if s.get('state') == 'exists':
+                ne += 1
+            elif s.get('state') == 'new':
+                nn += 1
+        for sec in self.secs.get(g['g'], []):
+            if sec.get('state') == 'exists':
+                ne += 1
+            elif sec.get('state') == 'new':
+                nn += 1
+        return ne, nn
 
     def rows(self):
         if self.mode == 'TREE':
@@ -205,6 +258,9 @@ class Ctx:
                    'пробел — галочка · a/n — все/ничего · q — отмена']
         elif kind == 'G':
             src = [g['desc']]
+            ne, nn = self._state_counts(g)
+            if ne or nn:
+                src.append(f"● уже есть в $HOME: {ne} · ○ будет создано: {nn}")
             has = bool(self.subs.get(g['g'])) or bool(self.secs.get(g['g']))
             if has and g['expanded']:
                 src.append('пробел — вся группа · ← — свернуть · Tab — свернуть все · q — отмена')
@@ -213,15 +269,33 @@ class Ctx:
             else:
                 src.append('Enter — ок · q — отмена')
         elif kind == 'SEC':
-            has = bool(self.sectools.get(f"{g['g']}|{g['name']}"))
-            src = [f"{g['name']}: {g['desc']}"]
+            tools = self.sectools.get(f"{g['g']}|{g['name']}", [])
+            has = bool(tools)
+            src = [f"{g['name']} — {g['desc']}" if g['desc'] else g['name']]
+            st = g.get('state', '')
+            if st == 'exists':
+                src.append('● уже существует в $HOME — при распаковке будет перезаписан')
+            elif st == 'new':
+                src.append('○ в $HOME отсутствует — будет создан')
+            p = g.get('path', '')
+            if p:
+                home = os.path.expanduser('~')
+                src.append('~' + p[len(home):] if p.startswith(home) else p)
+                s = dir_summary(p)
+                if s:
+                    src.append(s)
             if has:
-                src.append('пробел — вся секция · → — раскрыть тулы · ← — к группе · q — отмена')
+                src.append('пробел — весь путь · → — раскрыть подпути · ← — к группе · q — отмена')
             else:
-                src.append('пробел — галочка · q — отмена')
+                src.append('пробел — галочка · ← — к группе · q — отмена')
         else:
-            # подпункт: полное описание, путь, автосводка содержимого, хоткеи
-            src = [it['desc']]
+            # подпункт: описание, состояние, путь, автосводка содержимого, хоткеи
+            src = [it['desc'] or it.get('hint') or it['tag']]
+            st = it.get('state', '')
+            if st == 'exists':
+                src.append('● уже существует — при распаковке будет перезаписан')
+            elif st == 'new':
+                src.append('○ новый — будет создан')
             path = it.get('path', '')
             if path:
                 home = os.path.expanduser('~')
@@ -250,6 +324,8 @@ class Ctx:
         hdr = "↑/↓ j/k — курсор · пробел — галочка · a/n — все/ничего · q — отмена · Enter — ок"
         if self.mode == 'TREE':
             hdr += " · →/← — раскрыть/свернуть · Tab — все списки"
+            if self.has_states:
+                hdr += " · ● уже есть · ○ будет создан"
         scr.addnstr(1, 0, hdr, w - 1, curses.A_DIM)
         rows = self.rows()
         if self.mode == 'TREE':
@@ -272,24 +348,41 @@ class Ctx:
             if self.mode == 'TREE' and kind == 'SEC':
                 if not cur_row:
                     attr = curses.color_pair(1) | curses.A_BOLD
-                n = sum(1 for x in self.sectools.get(f"{g['g']}|{g['name']}", []) if x['on'])
-                cnt = len(self.sectools.get(f"{g['g']}|{g['name']}", []))
-                glyph = '▾' if g['expanded'] else '▸'
+                tools = self.sectools.get(f"{g['g']}|{g['name']}", [])
+                n = sum(1 for x in tools if x['on'])
+                cnt = len(tools)
+                glyph = ('▾' if g['expanded'] else '▸') if cnt else ' '
                 mark = f" [{n}/{cnt}]" if cnt else ''
-                text = f"    └ [ {'▶' if cur_row else ' '}] {glyph} {g['name']} — {g['desc']}{mark}"
-                size = g['size'] if cnt == 0 else sum(x['size'] for x in self.sectools[f"{g['g']}|{g['name']}"])
+                size = g['size'] if cnt == 0 else sum(x['size'] for x in tools)
+                pre = f"    └ [ {'▶' if cur_row else ' '}] {glyph} "
+                body = (f"{g['name']} — {g['desc']}" if g['desc'] else g['name']) + mark
                 y = body_top + i - self.top
-                scr.addnstr(y, 0, text, w - 11, attr)
+                scr.addnstr(y, 0, pre, w - 11, attr)
+                col = len(pre)
+                mch, mpair = state_mark(g.get('state', ''))
+                if mch:
+                    scr.addnstr(y, col, f"{mch} ", max(1, w - 11 - col),
+                                curses.color_pair(mpair) | (attr & curses.A_REVERSE))
+                    col += 2
+                scr.addnstr(y, col, body, max(0, w - 11 - col), attr)
                 if size:
                     scr.addnstr(y, max(0, w - 10), f"{fmt_m(size):>8}", 9, attr)
                 continue
             if self.mode == 'TREE' and kind == 'T':
                 if not cur_row:
                     attr = curses.A_DIM | attr
-                text = f"        └ [{'x' if it['on'] else ' '}] {it['tag']}  {it['desc']}"
+                pre = f"        └ [{'x' if it['on'] else ' '}] "
+                body = f"{it['tag']}  {it['desc']}"
                 size = it['size']
                 y = body_top + i - self.top
-                scr.addnstr(y, 0, text, w - 11, attr)
+                scr.addnstr(y, 0, pre, w - 11, attr)
+                col = len(pre)
+                mch, mpair = state_mark(it.get('state', ''))
+                if mch:
+                    scr.addnstr(y, col, f"{mch} ", max(1, w - 11 - col),
+                                curses.color_pair(mpair) | (attr & curses.A_REVERSE))
+                    col += 2
+                scr.addnstr(y, col, body, max(0, w - 11 - col), attr)
                 if size:
                     scr.addnstr(y, max(0, w - 10), f"{fmt_m(size):>8}", 9, attr)
                 continue
@@ -298,16 +391,35 @@ class Ctx:
                     attr = curses.color_pair(1)
                 n = sum(1 for s in self.subs.get(g['g'], []) if s['on'])
                 cnt = len(self.subs.get(g['g'], []))
+                if not cnt and self.secs.get(g['g']):   # группа с секциями (unpack/programs)
+                    n = sum(1 for sec in self.secs[g['g']] if sec['on'])
+                    cnt = len(self.secs[g['g']])
                 glyph = ' ' if not cnt else ('▾' if g['expanded'] else '▸')
                 mark = f" [{n}/{cnt}]" if cnt else ''
                 text = f"  [{'x' if g['on'] else ' '}] {glyph} {g['desc']}{mark}"
-                size = g['size'] if cnt == 0 else sum(s['size'] for s in self.subs[g['g']])
+                if self.subs.get(g['g']):        # обычная группа: сумма подпунктов
+                    size = sum(s['size'] for s in self.subs[g['g']])
+                else:                            # группа-лист или с секциями (unpack): свой размер
+                    size = g['size']
             elif self.mode == 'TREE':
-                tag_disp = it['tag'].split(':', 1)[1] if ':' in it['tag'] else it['tag']
-                text = f"    └ [{'x' if it['on'] else ' '}] {tag_disp}  {it['desc']}"
-                size = it['size']
                 if not cur_row:
                     attr = curses.A_DIM | attr
+                tag_disp = it['tag'].split(':', 1)[1] if ':' in it['tag'] else it['tag']
+                pre = f"    └ [{'x' if it['on'] else ' '}] "
+                body = f"{tag_disp}  {it['desc']}"
+                size = it['size']
+                y = body_top + i - self.top
+                scr.addnstr(y, 0, pre, w - 11, attr)
+                col = len(pre)
+                mch, mpair = state_mark(it.get('state', ''))
+                if mch:
+                    scr.addnstr(y, col, f"{mch} ", max(1, w - 11 - col),
+                                curses.color_pair(mpair) | (attr & curses.A_REVERSE))
+                    col += 2
+                scr.addnstr(y, col, body, max(0, w - 11 - col), attr)
+                if size:
+                    scr.addnstr(y, max(0, w - 10), f"{fmt_m(size):>8}", 9, attr)
+                continue
             else:
                 if self.mode == 'MENU':
                     mark = '▶' if cur_row else ' '
@@ -438,6 +550,8 @@ def loop(scr, mode, groups, subs, items, secs=None, sectools=None):
     if curses.has_colors():
         curses.start_color()
         curses.init_pair(1, curses.COLOR_CYAN, -1)
+        curses.init_pair(2, curses.COLOR_YELLOW, -1)   # ● цель уже есть
+        curses.init_pair(3, curses.COLOR_GREEN, -1)    # ○ цель будет создана
     ctx = Ctx(scr, mode, groups, subs, items, secs, sectools)
     ctx.draw()
     while True:
@@ -472,7 +586,7 @@ def loop(scr, mode, groups, subs, items, secs=None, sectools=None):
                 toggle(g, None, subs, sec=g,
                        tools=sectools.get(f"{g['g']}|{g['name']}", []))
             else:
-                toggle(g, it, subs)
+                toggle(g, it, subs, secs=secs, sectools=sectools)
         elif key in (ord('a'), ord('A'), ord('ф'), ord('Ф')):
             if mode == 'TREE':
                 for gg in groups:

@@ -2,9 +2,11 @@
 # os-migrate-tool :: unpack.sh
 # Восстановление на CachyOS (Arch) из бандла прогона на SSD.
 # Запускается прямо с SSD:  ./unpack.sh [--packages|--appimages|--dotfiles|--data|--agents|--browsers|all] [--dry-run]
-# Флаги можно комбинировать; all = все компоненты прогона.
-# Распаковка: список содержимого бандла читается 1 раз, домашние сегменты
-# извлекаются ОДНИМ проходом tar (каждый проход = полная прокрутка gzip).
+# Флаги можно комбинировать; all = все компоненты прогона. Без аргументов —
+# TUI-дерево: сегмент → верхнеуровневые пути → подпути 2-го уровня; у каждого
+# пункта маркер ● (уже есть в $HOME — будет перезаписан) / ○ (будет создан).
+# Распаковка: список содержимого бандла с размерами читается 1 раз (tar -tv),
+# выбранные домашние пути извлекаются ОДНИМ проходом tar (--files-from).
 set -euo pipefail
 
 TOOL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -73,26 +75,71 @@ eval "$(python3 "$TOOL_DIR/src/conf.py" \
     "$TOOL_DIR/configs/inventory.yaml" "$TOOL_DIR/configs/selection.yaml" \
     "$TOOL_DIR/configs/exclude_dirs.yaml")"
 
-# ---------- 3. Список содержимого бандла (1 проход) ----------
+# ---------- 3. Содержимое бандла: имена + размеры (1 проход tar -tv) ----------
+# BUNDLE_LIST — пути членов; BUNDLE_IDX — агрегаты awk (один проход по выводу):
+#   G <сегмент> <Mб>                        — суммарный размер сегмента
+#   E <сегмент> <путь> <dir|file> <Mб>      — верхнеуровневые пути сегмента
+#   C <сегмент> <путь> <подпуть> <dir|file> <Mб> — подпути 2-го уровня
 BUNDLE_LIST="$(mktemp /tmp/omt-bundle-list.XXXXXX)"
-info "Читаю содержимое бандла (один проход)..."
-tar --ignore-zeros $ZF -tf "$BUNDLE" > "$BUNDLE_LIST"
-ok "сегментов: $(cut -d/ -f1 "$BUNDLE_LIST" | sort -u | wc -l), членов: $(wc -l < "$BUNDLE_LIST")"
+BUNDLE_IDX="$(mktemp /tmp/omt-bundle-idx.XXXXXX)"
+trap 'rm -f "$BUNDLE_LIST" "$BUNDLE_IDX"' EXIT
+info "Читаю содержимое бандла (один проход, с размерами)..."
+LC_ALL=C tar --ignore-zeros $ZF -tvf "$BUNDLE" | awk -v out="$BUNDLE_LIST" -v idx="$BUNDLE_IDX" '
+function MB(x) { return int((x + 1048575) / 1048576) }  # байты -> Mб, с избытком
+{
+    sz = $3 + 0
+    p = $0
+    sub(/^[^ ]+ +[^ ]+ +[^ ]+ +[^ ]+ +[^ ]+ +/, "", p)  # perms owner/group size date time
+    sub(/ -> .*$/, "", p)                               # хвост симлинка — не имя
+    print p > out
+    n = split(p, c, "/")
+    seg = c[1]
+    G[seg] += sz
+    if (n >= 2 && c[2] != "") {
+        E[seg SUBSEP c[2]] = 1
+        S[seg "/" c[2]] += sz
+        if (p ~ /\/$/) ED[seg SUBSEP c[2]] = 1          # есть член с хвостовым / — каталог
+        if (n >= 3 && c[3] != "") {
+            C[seg SUBSEP c[2] SUBSEP c[3]] = 1
+            T[seg "/" c[2] "/" c[3]] += sz
+            if (p ~ /\/$/) CD[seg SUBSEP c[2] SUBSEP c[3]] = 1
+        }
+    }
+}
+END {
+    for (k in G) printf "G\t%s\t%d\n", k, MB(G[k]) > idx
+    for (k in E) { split(k, a, SUBSEP)
+        printf "E\t%s\t%s\t%s\t%d\n", a[1], a[2], (ED[k] ? "dir" : "file"), MB(S[a[1] "/" a[2]]) > idx }
+    for (k in C) { split(k, a, SUBSEP)
+        printf "C\t%s\t%s\t%s\t%s\t%d\n", a[1], a[2], a[3], (CD[k] ? "dir" : "file"), MB(T[a[1] "/" a[2] "/" a[3]]) > idx }
+}'
+sort -o "$BUNDLE_IDX" "$BUNDLE_IDX"
+ok "сегментов: $(awk -F'\t' '$1=="G"' "$BUNDLE_IDX" | wc -l), членов: $(wc -l < "$BUNDLE_LIST")"
 
-seg_in_bundle() { grep -q "^$1/" "$BUNDLE_LIST"; }
+declare -A SEG_SZ ENTRY_SZ ENTRY_TYPE CHILD_SZ CHILD_TYPE CHILD_OF
+ENTRY_KEYS=(); CHILD_KEYS=()
+while IFS=$'\t' read -r kind f2 f3 f4 f5 f6; do
+    case "$kind" in
+        G) SEG_SZ["$f2"]="$f3";;
+        E) ENTRY_SZ["$f2/$f3"]="$f5"; ENTRY_TYPE["$f2/$f3"]="$f4"; ENTRY_KEYS+=("$f2/$f3");;
+        C) CHILD_SZ["$f2/$f3/$f4"]="$f6"; CHILD_TYPE["$f2/$f3/$f4"]="$f5"; CHILD_KEYS+=("$f2/$f3/$f4");;
+    esac
+done < "$BUNDLE_IDX"
+for ck in ${CHILD_KEYS[@]+"${CHILD_KEYS[@]}"}; do   # подпути по родителю: seg/entry -> seg/entry/child
+    k="${ck%/*}"
+    CHILD_OF["$k"]+="$ck"$'\n'
+done
+
+seg_in_bundle() { [[ -n "${SEG_SZ[$1]:-}" ]]; }
 
 # .meta/ потерян на диске — восстанавливаем paths.tsv из резервного сегмента
 if [[ ! -s "$META/paths.tsv" ]] && grep -q "^meta/paths.tsv" "$BUNDLE_LIST"; then
     mkdir -p "$META"
-    tar --ignore-zeros -xzf "$BUNDLE" -C "$META" meta
+    tar --ignore-zeros $ZF -xf "$BUNDLE" -C "$META" meta
     ok "paths.tsv восстановлен из бандла (.meta/ отсутствовал на диске)"
 fi
-seg_conflicts() { # верхнеуровневые пути сегмента, уже существующие в $HOME
-    grep "^$1/" "$BUNDLE_LIST" | sed "s|^$1/||; s|/.*||" | sort -u | \
-        while IFS= read -r t; do [[ -n "$t" && -e "$HOME/$t" ]] && echo "$t"; done || true
-}
 
-# ---------- 4. Компоненты ----------
+# ---------- 4. Что восстанавливаем ----------
 COMPONENTS=(
   "programs;CLI-программы: переустановка по mapping.toml"
   "packages;манифесты + установка по mapping.toml"
@@ -107,100 +154,273 @@ COMPONENTS=(
   "extra;дополнительные пути"
 )
 
-# выбор: аргументы CLI (`all` = всё, что есть в бандле), иначе чеклист
-if [[ $# -gt 0 && "$1" == all ]]; then
-    SEL=()
+# Особые компоненты: programs (meta/programs.txt), packages/appimages (сегменты
+# в $META). Остальные едут в $HOME. Выбор: SEG_WHOLE[seg]=1 — сегмент целиком,
+# либо SEL_PARTS[seg] — member-пути бандла (seg/entry или seg/entry/child).
+declare -A SEG_WHOLE SEL_PARTS
+is_home_seg() { case "$1" in packages|appimages|programs) return 1;; *) return 0;; esac; }
+
+_unpack_feed() { # TREE-протокол: сегмент -> верхнеуровневые пути -> подпути
+    local c tag desc k e ck ch ct cst ty
     for c in "${COMPONENTS[@]}"; do
         IFS=';' read -r tag desc <<<"$c"
-        seg_in_bundle "$tag" && SEL+=("$tag")
+        [[ "$tag" == programs ]] || seg_in_bundle "$tag" || continue
+        printf 'G;%s;%s;%s;OFF\n' "$tag" "$desc" "${SEG_SZ[$tag]:-0}"
+        is_home_seg "$tag" || continue
+        for k in ${ENTRY_KEYS[@]+"${ENTRY_KEYS[@]}"}; do
+            [[ "$k" == "$tag/"* ]] || continue
+            e="${k#"$tag"/}"
+            ct="$HOME/$e"
+            if [[ -e "$ct" || -L "$ct" ]]; then cst="exists"; else cst="new"; fi
+            if [[ "${ENTRY_TYPE[$k]:-}" == dir ]]; then ty="каталог"; else ty="файл"; fi
+            printf 'SEC;%s;%s;%s;%s;OFF;%s;%s\n' "$tag" "$e" "$ty" "${ENTRY_SZ[$k]:-0}" "$ct" "$cst"
+            while IFS= read -r ck; do
+                [[ -n "$ck" ]] || continue
+                ch="${ck##*/}"
+                ct="$HOME/${ck#"$tag"/}"
+                if [[ -e "$ct" || -L "$ct" ]]; then cst="exists"; else cst="new"; fi
+                if [[ "${CHILD_TYPE[$ck]:-}" == dir ]]; then ty="каталог"; else ty="файл"; fi
+                printf 'T;%s;%s;%s;%s;%s;OFF;;%s;%s\n' "$tag" "$e" "$ch" "$ty" "${CHILD_SZ[$ck]:-0}" "$ct" "$cst"
+            done <<<"${CHILD_OF[$k]:-}"
+        done
+    done
+    return 0
+}
+
+unpack_tree() { # TUI-дерево выбора: результат -> SEG_WHOLE / SEL_PARTS
+    local st rc=0 line tag c k e ck n_all n_on
+    local -a mems
+    declare -A T_G T_SEC T_T
+    st="$(mktemp /tmp/omt-unpack-sel.XXXXXX)"
+    OMT_STATE="$st" OMT_TUI_TITLE="Что восстанавливаем?" \
+        python3 "$TOOL_DIR/src/tui.py" TREE < <(_unpack_feed) || rc=$?
+    if (( rc == 1 )); then
+        warn "Отменено — ничего не распаковано."
+        exit 0
+    fi
+    (( rc == 0 )) || die "tui: дерево завершилось с ошибкой ($rc)"
+    while IFS= read -r line; do
+        IFS=';' read -r typ f1 f2 f3 f4 <<<"$line"
+        case "$typ" in
+            G)   T_G["$f1"]="$f2";;
+            SEC) T_SEC["$f1|$f2"]="$f3";;
+            T)   T_T["$f1|$f2|$f3"]="$f4";;
+        esac
+    done < "$st"
+    rm -f "$st"
+    for c in "${COMPONENTS[@]}"; do
+        IFS=';' read -r tag _ <<<"$c"
+        if ! is_home_seg "$tag"; then
+            [[ ${T_G["$tag"]:-} == ON ]] && SEG_WHOLE["$tag"]=1
+            continue
+        fi
+        # состояние детей решает и при OFF-группе (включённый подпункт едет);
+        # группа ON без деталей = все записи ON -> сегмент целиком
+        mems=(); n_all=0; n_on=0
+        for k in ${ENTRY_KEYS[@]+"${ENTRY_KEYS[@]}"}; do
+            [[ "$k" == "$tag/"* ]] || continue
+            e="${k#"$tag"/}"; n_all=$((n_all+1))
+            if [[ ${T_SEC["$tag|$e"]:-} == ON ]]; then
+                n_on=$((n_on+1)); mems+=("$k")       # путь целиком
+            else
+                while IFS= read -r ck; do            # только выбранные подпути
+                    [[ -n "$ck" && ${T_T["$tag|$e|${ck##*/}"]:-} == ON ]] && mems+=("$ck")
+                done <<<"${CHILD_OF[$k]:-}"
+            fi
+        done
+        if (( n_all > 0 && n_on == n_all )); then
+            SEG_WHOLE["$tag"]=1                      # выбраны все пути — сегмент целиком
+        elif (( ${#mems[@]} > 0 )); then
+            SEL_PARTS["$tag"]=$(printf '%s\n' "${mems[@]}")
+        fi
+    done
+    return 0
+}
+
+if [[ $# -gt 0 && "$1" == all ]]; then
+    for c in "${COMPONENTS[@]}"; do
+        IFS=';' read -r tag _ <<<"$c"
+        seg_in_bundle "$tag" && SEG_WHOLE["$tag"]=1
     done
 elif [[ $# -gt 0 ]]; then
-    SEL=()
+    VALID=""
+    for c in "${COMPONENTS[@]}"; do IFS=';' read -r tag _ <<<"$c"; VALID+="$tag "; done
     for a in "$@"; do
         a="${a#--}"   # --dotfiles == dotfiles
-        found=0
-        for c in "${COMPONENTS[@]}"; do IFS=';' read -r tag _ <<<"$c"; [[ "$tag" == "$a" ]] && found=1; done
-        if (( ! found )); then die "неизвестный компонент: $a (есть: ${COMPONENTS[*]%%;*} | all)"; fi
-        [[ "$a" == programs ]] || { seg_in_bundle "$a" || die "в бандле нет сегмента $a/"; }
-        [[ "$a" != programs || -s "$BUNDLE_LIST" ]] || true
-        SEL+=("$a")
+        [[ " $VALID " == *" $a "* ]] || die "неизвестный компонент: $a (есть: ${VALID% }| all)"
+        [[ "$a" == programs ]] || seg_in_bundle "$a" || die "в бандле нет сегмента $a/"
+        SEG_WHOLE["$a"]=1
     done
+elif (( OMT_TUI )); then
+    unpack_tree
 else
+    # fallback без curses: плоский чеклист сегментов целиком
     CHECKS=(); for c in "${COMPONENTS[@]}"; do
         IFS=';' read -r tag desc <<<"$c"
-        seg_in_bundle "$tag" && CHECKS+=("$tag;$desc;OFF")
+        { [[ "$tag" == programs ]] || seg_in_bundle "$tag"; } && CHECKS+=("$tag;$desc;OFF")
     done
     ((${#CHECKS[@]})) || die "в бандле нет ни одного сегмента"
-    OMT_STATE="$META/.sel-state" ui_checklist "Что восстанавливаем?" "${CHECKS[@]}"
-    mapfile -t SEL < "$META/.sel-state"
+    mapfile -t SEL < <(ui_checklist "Что восстанавливаем? (без curses — сегменты целиком)" "${CHECKS[@]}")
+    for tag in "${SEL[@]}"; do [[ -n "$tag" ]] && SEG_WHOLE["$tag"]=1; done
 fi
+
+SEL=()
+for c in "${COMPONENTS[@]}"; do
+    IFS=';' read -r tag _ <<<"$c"
+    [[ -n "${SEG_WHOLE[$tag]:-}" || -n "${SEL_PARTS[$tag]:-}" ]] && SEL+=("$tag")
+done
 [[ ${#SEL[@]} -gt 0 && -n "${SEL[0]:-}" ]] || die "ничего не выбрано"
 
 if (( DRY )); then MISSING="/tmp/missing-mapping.dryrun.txt"; else MISSING="$META/missing-mapping.txt"; fi
 : > "$MISSING"
 
-# ---------- 5. Конфликты (до распаковки) — один вопрос на сегмент ----------
-declare -A SEG_ACTION   # сегмент -> "" | backup | (skip отсеется)
-HOME_SEGS=()            # сегменты, распаковываемые в $HOME
+# ---------- 5. Конфликты с $HOME — по выбранным путям, вопрос на сегмент ----------
+hmb() { awk -v m="${1:-0}" 'BEGIN { if (m >= 1024) printf "%.1fG", m/1024; else printf "%dM", m }'; }
+
+member_size() { # размер member-пути бандла ("seg" | "seg/entry" | "seg/e/child")
+    local m="$1"
+    case "$m" in
+        */*/*) echo "${CHILD_SZ[$m]:-0}";;
+        */*)   echo "${ENTRY_SZ[$m]:-0}";;
+        *)     echo "${SEG_SZ[$m]:-0}";;
+    esac
+    return 0
+}
+
+seg_sel_size() { # выбранный объём сегмента, Мб
+    local s="$1" m t=0
+    if [[ -n "${SEG_WHOLE[$s]:-}" ]]; then echo "${SEG_SZ[$s]:-0}"; return 0; fi
+    while IFS= read -r m; do
+        [[ -n "$m" ]] && t=$(( t + $(member_size "$m") ))
+    done <<<"${SEL_PARTS[$s]:-}"
+    echo "$t"
+    return 0
+}
+
+seg_targets() { # выбранные верхнеуровневые цели сегмента в $HOME (пути от $HOME)
+    local s="$1"
+    if [[ -n "${SEG_WHOLE[$s]:-}" ]]; then
+        grep "^$s/" "$BUNDLE_LIST" | sed "s|^$s/||; s|/.*||" | grep -v '^$' | sort -u || true
+    else
+        sed "s|^$s/||" <<<"${SEL_PARTS[$s]}"
+    fi
+    return 0
+}
+
+seg_exists() { [[ -e "$HOME/$1" || -L "$HOME/$1" ]]; }
+
+seg_conflicts() { # выбранные цели сегмента, уже существующие в $HOME
+    local t
+    while IFS= read -r t; do
+        [[ -n "$t" ]] && seg_exists "$t" && printf '%s\n' "$t"
+    done < <(seg_targets "$1")
+    return 0
+}
+
+drop_seg() { # убрать сегмент из выбора
+    local s="$1" x
+    unset "SEG_WHOLE[$s]" "SEL_PARTS[$s]"
+    nsel=()
+    for x in "${SEL[@]}"; do [[ "$x" != "$s" ]] && nsel+=("$x"); done
+    if (( ${#nsel[@]} )); then SEL=("${nsel[@]}"); else SEL=(); fi
+    return 0
+}
+
 for s in "${SEL[@]}"; do
     case "$s" in packages|appimages|programs) continue;; esac
     if (( DRY )); then
-        tops=$(seg_conflicts "$s")
-        if [[ -n "$tops" ]]; then
-            dry "«$s»: уже существуют: $(echo "$tops" | tr '\n' ' ') — skip/backup/overwrite (выбор)"
-        else
-            dry "«$s» — распакован в \$HOME [dry-run]"
-        fi
-        HOME_SEGS+=("$s")
+        dry "«$s» (~$(hmb "$(seg_sel_size "$s")")):"
+        while IFS= read -r t; do
+            [[ -n "$t" ]] || continue
+            if seg_exists "$t"; then dry "   ● $t — уже есть, будет перезаписан"; else dry "   ○ $t — будет создан"; fi
+        done < <(seg_targets "$s")
         continue
     fi
-    tops=$(seg_conflicts "$s")
-    if [[ -n "$tops" ]]; then
-        ch=$(ui_menu "«$s» — уже существуют: $(echo "$tops" | tr '\n' ' '). Что делать?" \
-            "skip;не трогать существующее" \
-            "backup;переместить существующее в *.bak-premigrate" \
-            "overwrite;перезаписать")
-        case "$ch" in
-            backup)
-                while IFS= read -r t; do mv "$HOME/$t" "$HOME/$t.bak-premigrate"; done <<<"$tops"
-                HOME_SEGS+=("$s");;
-            overwrite) HOME_SEGS+=("$s");;
-            *) warn "$s — пропущен";;
-        esac
-    else
-        HOME_SEGS+=("$s")
-    fi
+    confs=$(seg_conflicts "$s")
+    [[ -z "$confs" ]] && continue
+    ch=$(ui_menu "«$s»: уже существуют — $(echo "$confs" | tr '\n' ' '). Что делать?" \
+        "overwrite;перезаписать существующее" \
+        "backup;перенести существующее в *.bak-premigrate" \
+        "keep;распаковать только новое — существующее не трогать" \
+        "skip;пропустить сегмент целиком")
+    case "$ch" in
+        overwrite) :;;
+        backup)
+            while IFS= read -r t; do
+                [[ -n "$t" ]] || continue
+                mv "$HOME/$t" "$HOME/$t.bak-premigrate"
+                ok "  $t -> $t.bak-premigrate"
+            done <<<"$confs";;
+        keep)
+            keep=()
+            while IFS= read -r m; do
+                [[ -n "$m" ]] || continue
+                seg_exists "${m#"$s"/}" || keep+=("$m")
+            done < <(if [[ -n "${SEG_WHOLE[$s]:-}" ]]; then
+                        grep "^$s/" "$BUNDLE_LIST" | sed "s|^$s/||; s|/.*||" | grep -v '^$' | sort -u | sed "s|^|$s/|"
+                     else
+                        printf '%s\n' "${SEL_PARTS[$s]}"
+                     fi)
+            unset "SEG_WHOLE[$s]"
+            if (( ${#keep[@]} )); then
+                SEL_PARTS["$s"]=$(printf '%s\n' "${keep[@]}")
+            else
+                drop_seg "$s"
+                warn "$s — существующее не тронуто, нового нет — сегмент пропущен"
+            fi;;
+        *) drop_seg "$s"; warn "$s — пропущен";;
+    esac
 done
+((${#SEL[@]})) || die "после разбора конфликтов нечего распаковывать"
 
 # browsers: keyring до распаковки
-if (( ! DRY )) && [[ " ${SEL[*]} " == *" browsers "* && " ${HOME_SEGS[*]} " == *" browsers "* ]]; then
+if (( ! DRY )) && [[ " ${SEL[*]} " == *" browsers "* ]]; then
     warn "Перед распаковкой браузеров: пароли профиля привязаны к старому keyring."
     read -rp "Помнишь пароль старого keyring? [y/N] " a || a=""
     [[ ${a:-n} =~ ^[Yy]$ ]] || {
         warn "browsers пропущен — введи пароль keyring и повтори"
-        NEW=(); for s in "${HOME_SEGS[@]}"; do [[ "$s" == browsers ]] || NEW+=("$s"); done
-        HOME_SEGS=("${NEW[@]:-}")
+        drop_seg "browsers"
     }
 fi
 
-# ---------- 6. Распаковка: по одному проходу на цель ----------
+# ---------- 6. Распаковка: META-сегменты целиком, $HOME — одним проходом tar ----------
 if (( ! DRY )); then
-    if [[ " ${SEL[*]} " == *" packages "* || " ${SEL[*]} " == *" appimages "* ]]; then
+    META_SEGS=()
+    for s in packages appimages; do
+        [[ -n "${SEG_WHOLE[$s]:-}" ]] && META_SEGS+=("$s")
+    done
+    if (( ${#META_SEGS[@]} )); then
         mkdir -p "$META"
-        META_SEGS=(); for s in packages appimages; do
-            [[ " ${SEL[*]} " == *" $s "* ]] && META_SEGS+=("$s"); done
         info "Распаковка в meta: ${META_SEGS[*]} (проход 1/2)..."
         tar --ignore-zeros $ZF -xf "$BUNDLE" -C "$META" "${META_SEGS[@]}"
     fi
-    if ((${#HOME_SEGS[@]})); then
-        info "Распаковка в \$HOME: ${HOME_SEGS[*]} (проход 2/2)..."
-        tar --ignore-zeros $ZF -xf "$BUNDLE" -C "$HOME" --strip-components=1 "${HOME_SEGS[@]}"
+    EXTRACT="$(mktemp /tmp/omt-unpack-list.XXXXXX)"
+    HOME_SEGS=()
+    for s in "${SEL[@]}"; do
+        is_home_seg "$s" || continue
+        HOME_SEGS+=("$s")
+        if [[ -n "${SEG_WHOLE[$s]:-}" ]]; then
+            echo "$s" >> "$EXTRACT"
+        else
+            grep -v '^$' <<<"${SEL_PARTS[$s]}" >> "$EXTRACT" || true
+        fi
+    done
+    if (( ${#HOME_SEGS[@]} )); then
+        info "Распаковка в \$HOME: ${HOME_SEGS[*]} — только выбранные пути (проход 2/2)..."
+        tar --ignore-zeros $ZF -xf "$BUNDLE" -C "$HOME" --strip-components=1 \
+            --verbatim-files-from --files-from="$EXTRACT"
         ok "распаковано в \$HOME: ${HOME_SEGS[*]}"
     fi
+    rm -f "$EXTRACT"
 else
-    [[ " ${SEL[*]} " == *" packages "* ]] && dry "packages: манифесты -> $META/packages/"
-    [[ " ${SEL[*]} " == *" appimages "* ]] && dry "appimages: из бандла -> ~/Applications"
-    ((${#HOME_SEGS[@]})) && dry "в \$HOME: ${HOME_SEGS[*]} (один проход tar)"
+    META_SEGS=()
+    for s in packages appimages; do
+        [[ -n "${SEG_WHOLE[$s]:-}" ]] && META_SEGS+=("$s")
+    done
+    ((${#META_SEGS[@]})) && dry "packages/appimages: манифесты и списки -> $META/"
+    HOME_SEGS=()
+    for s in "${SEL[@]}"; do is_home_seg "$s" && HOME_SEGS+=("$s"); done
+    ((${#HOME_SEGS[@]})) && dry "в \$HOME: ${HOME_SEGS[*]} — один проход tar, только выбранные пути"
 fi
 
 # ---------- 7. Пост-обработка компонентов ----------
@@ -294,7 +514,13 @@ done
 
 # ---------- 8. Отчёт ----------
 echo; ok "===== ИТОГ $([[ $DRY == 1 ]] && echo '(DRY-RUN — ничего не выполнено)' || echo '') ====="
-for s in "${SEL[@]}"; do echo "  • $s"; done
+for s in "${SEL[@]}"; do
+    if [[ -n "${SEG_WHOLE[$s]:-}" ]]; then
+        echo "  • $s — сегмент целиком (~$(hmb "${SEG_SZ[$s]:-0}"))"
+    else
+        echo "  • $s — выбранных путей: $(grep -c . <<<"${SEL_PARTS[$s]}" || true), ~$(hmb "$(seg_sel_size "$s")")"
+    fi
+done
 if [[ -s "$META/paths.tsv" ]]; then
     ok "Мапинг источник->приёмник: $META/paths.tsv ($(($(wc -l < "$META/paths.tsv")-1)) путей)"
     info "Пути восстановления (из paths.tsv):"
