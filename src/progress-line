@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+# os-migrate-tool :: progress-line
+# Однострочный символьный прогресс-бар для tar --checkpoint-action=exec.
+# Вызывается tar'ом: exec="progress-line <сегмент> <ожидаемых_байт>";
+# tar передаёт в $TAR_CHECKPOINT НОМЕР записи (накопительно; pack задаёт
+# --checkpoint=200 → срабатывание каждые ~2МБ). 1 запись = 10240 байт.
+# Пишет \r-строку в stderr.
+
+seg="${1:-?}"
+total="${2:-0}"
+rec="${TAR_CHECKPOINT:-0}"
+
+(( total > 0 )) || exit 0
+bytes=$(( rec * 10240 ))
+pct=$(( bytes * 100 / total ))
+(( pct > 100 )) && pct=100
+(( pct < 0 )) && pct=0
+
+w=24
+fill=$(( pct * w / 100 ))
+empty=$(( w - fill ))
+bar=""
+for ((i = 0; i < fill; i++)); do bar+="▓"; done
+for ((i = 0; i < empty; i++)); do bar+="░"; done
+
+done_b=$(( bytes / 1048576 ))
+total_m=$(( total / 1048576 ))
+printf '\r  %s [%s] %3d%% (%sM/%sM)' "$seg" "$bar" "$pct" "$done_b" "$total_m" >&2
+exit 0

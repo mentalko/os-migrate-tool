@@ -29,6 +29,8 @@ lib.sh. На FAT/exFAT/NTFS-SSD запускать `bash pack.sh` / `bash unpack
 
 ```bash
 ./pack.sh            # или bash pack.sh
+./pack.sh --no-compress   # бандл .tar без сжатия: быстрее, выборочная
+                      # распаковка мгновенная; на SSD ~raw объём
 ./pack-kitty.sh      # то же в отдельном окне kitty; лог сессии в /tmp/omt-pack-*.ts
                      # (агент читает лог при падении), код выхода — .rc
 ```
@@ -123,7 +125,8 @@ lib.sh. На FAT/exFAT/NTFS-SSD запускать `bash pack.sh` / `bash unpack
   и ссылки в конце (flathub-страницы, url из mapping.toml) — ставь вручную.
 - Названия прогонов: `<дата>_<исходная-ос>.tar.gz` (+ `.meta/` рядом),
   берётся из /etc/os-release, чтобы бэкапы до/после переезда не смешались.
-  Бандл — мульти-членный gzip: любое чтение только с `tar --ignore-zeros`.
+  Бандл — мульти-членный gzip (или .tar при --no-compress): любое чтение
+  только с `tar --ignore-zeros`.
 - Перед распаковкой браузеров убедиться, что пользователь помнит пароль
   старого keyring — иначе пароли в профиле не откроются.
 - Внимание: `agents.tar.gz` содержит креды агентов (~/.zcode/cli/credentials.json,

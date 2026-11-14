@@ -7,9 +7,15 @@ TOOL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck disable=SC1091
 source "$TOOL_DIR/src/lib.sh"
 
-# ---------- 0. --dry-run ----------
+# ---------- 0. --dry-run / --no-compress / --compress ----------
+NOCOMPRESS=0; COMPRESS_FORCED=0
+for arg in "$@"; do
+    if [[ "$arg" == "--no-compress" ]]; then NOCOMPRESS=1; COMPRESS_FORCED=1; fi
+    if [[ "$arg" == "--compress" ]];     then NOCOMPRESS=0; COMPRESS_FORCED=1; fi
+done
 omt_dryrun "$@"
 (( DRY )) && warn "РЕЖИМ DRY-RUN: ничего не будет записано, только отчёт о действиях."
+(( NOCOMPRESS )) && warn "Формат задан флагом: бандл .tar без сжатия."
 require_not_root
 
 # ---------- 1. ОС ----------
@@ -475,11 +481,14 @@ for s in "${SEL[@]}"; do
         echo "   + $s  [$(hM "$sz")]"
     fi
 done
-est=$(( total * COMPRESS_ESTIMATE / 100 ))   # оценка сжатия из migrate.conf
+est=$(( total * COMPRESS_ESTIMATE / 100 ))   # оценка сжатия из configs/inventory.yaml
+(( NOCOMPRESS )) && est=$total               # без сжатия: бандл = сырой объём
 free_h=$(df -h --output=avail "$SSD" | tail -1 | tr -d ' ')
 free_mb=$(df -m --output=avail "$SSD" | tail -1)
 echo "--------------------------------------------------"
-warn "Сырой объём: $(hM "$total")   оценка после tar.gz: ~$(hM "$est")   на SSD свободно: $free_h"
+CMP_NOTE="оценка после tar.gz: ~$(hM "$est")"
+(( NOCOMPRESS )) && CMP_NOTE="без сжатия (.tar)"
+warn "Сырой объём: $(hM "$total")   $CMP_NOTE   на SSD свободно: $free_h"
 (( free_mb > est )) || die "на $SSD свободно $(hM "$free_mb") — мало для оценки ~$(hM "$est")"
 
 info "Планируемые архивы:"
@@ -493,7 +502,15 @@ for grp in packages appimages dotfiles data agents programs appdata browsers fla
     echo "    ${PLAN_ROWS[$grp]}  —  $(hM "${GRP_SIZE_PLAN[$grp]}")"
 done
 echo "    --------------------------------------------"
-warn "Итого к записи: ~$(hM $(( plan_total * COMPRESS_ESTIMATE / 100 ))) (оценка tar.gz), на диске свободно: $free_h"
+if (( ! COMPRESS_FORCED )); then
+    # формат бандла не задан флагом — спрашиваем здесь, оценки обоих вариантов известны
+    fmt=$(ui_menu "Формат бандла — как упаковываем?" \
+        "gz;С сжатием (gzip) — ~$(hM $(( plan_total * COMPRESS_ESTIMATE / 100 ))), медленнее" \
+        "tar;Без сжатия (.tar) — ~$(hM $plan_total), быстрее, выборочная распаковка мгновенно")
+    case "$fmt" in tar) NOCOMPRESS=1;; *) NOCOMPRESS=0;; esac
+fi
+plan_est=$(( plan_total * COMPRESS_ESTIMATE / 100 )); (( NOCOMPRESS )) && plan_est=$plan_total
+warn "Итого к записи: ~$(hM $plan_est)$([[ $NOCOMPRESS == 0 ]] && echo ' (оценка tar.gz)'), на диске свободно: $free_h"
 read -rp "Начать упаковку? (y = да, Enter/N = отмена) " a || a=""   # EOF = отмена
 if [[ ! ${a:-n} =~ ^[Yy]$ ]]; then
     warn "Отменено пользователем — ничего не записано."
@@ -503,13 +520,15 @@ fi
 # ---------- 8. Прогон: один бандл .tar.gz на дату ----------
 # Сегменты компонентов дописываются в бандл как конкатенация gzip-членов,
 # каждый — под своим каталогом (dotfiles/, data/, …) через --transform.
+BUNDLE_EXT="tar.gz"; (( NOCOMPRESS )) && BUNDLE_EXT="tar"
+COMPRESS_OPT="z"; (( NOCOMPRESS )) && COMPRESS_OPT=""
 RUN_NAME="$(date +%F)_${OS_ID}"
 META="$TOOL_ROOT/archives/$RUN_NAME.meta"
-BUNDLE="$TOOL_ROOT/archives/$RUN_NAME.tar.gz"
+BUNDLE="$TOOL_ROOT/archives/$RUN_NAME.$BUNDLE_EXT"
 if [[ -e "$BUNDLE" || -e "$META" ]]; then
     RUN_NAME="$(date +%F_%H%M)_${OS_ID}"
     META="$TOOL_ROOT/archives/$RUN_NAME.meta"
-    BUNDLE="$TOOL_ROOT/archives/$RUN_NAME.tar.gz"
+    BUNDLE="$TOOL_ROOT/archives/$RUN_NAME.$BUNDLE_EXT"
 fi
 if (( DRY )); then
     dry "mkdir -p $META"
@@ -517,7 +536,7 @@ else
     mkdir -p "$META/packages" "$META/appimages"
     : > "$BUNDLE"
 fi
-info "Прогон: ${RUN_NAME}.tar.gz"
+info "Прогон: ${RUN_NAME}.${BUNDLE_EXT}"
 
 # исключения: паттерны из configs/exclude_dirs.yaml — на ВСЕ сегменты;
 # dedup (агентские/браузерные/тулчейн/flatpak пути + сам tool) — только
@@ -545,16 +564,20 @@ seg_tar() { # $1=каталог сегмента в бандле, $2=exclude-ф�
         [[ -e "$HOME/$p" ]] && paths+=("$p")
     done <<<"$list"
     ((${#paths[@]})) || { warn "$seg/: нечего паковать, сегмент пропущен"; return 0; }
+    for p in "${paths[@]}"; do raw=$(( raw + $(m_of "$p") )); done
+    local total_bytes=$(( raw * 1048576 ))
     if (( DRY )); then
-        for p in "${paths[@]}"; do raw=$(( raw + $(m_of "$p") )); done
-        dry "tar -cz --transform 's,^,$seg/,' … (${paths[*]})"
-        ok "$seg/ — ~$(hM "$raw") (оценка tar.gz: ~$(hM $(( raw*COMPRESS_ESTIMATE/100 )))) [dry-run]"
+        dry "tar -c${COMPRESS_OPT}f - --transform 's,^,$seg/,' … (${paths[*]})"
+        seg_est=$(( raw*COMPRESS_ESTIMATE/100 )); (( NOCOMPRESS )) && seg_est=$raw
+        ok "$seg/ — ~$(hM "$raw") (оценка: ~$(hM $seg_est)) [dry-run]"
     else
         # procsub инлайном: fd /dev/fd/N живёт только внутри команды tar
         local -a pre=()
         [[ -n "$excl" ]] && pre=( --exclude-from="$excl" )
-        ( cd "$HOME" && tar -cz --transform "s,^,$seg/," "${pre[@]}" \
+        ( cd "$HOME" && tar -c${COMPRESS_OPT}f - --transform "s,^,$seg/," "${pre[@]}" \
+            --checkpoint=200 --checkpoint-action="exec=$OMT_LIB_DIR/progress-line \"$seg\" $total_bytes" \
             --files-from <(printf '%s\n' "${paths[@]}") ) >> "$BUNDLE"
+        printf '\n' >&2
         ok "$seg/ — дописан в бандл (${#paths[@]} путей)"
     fi
     return 0
@@ -580,7 +603,7 @@ if [[ -n "${GRP_SIZE_PLAN[packages]:-}" ]]; then
         systemctl --user list-unit-files --state=enabled --no-legend --plain > "$META/packages/systemd-user-units.txt" || true
         command -v npm >/dev/null && npm ls -g --depth=0 > "$META/packages/npm-global.txt" 2>/dev/null || true
         command -v pip3 >/dev/null && pip3 list --user > "$META/packages/pip-user.txt" 2>/dev/null || true
-        ( cd "$META" && tar -cz packages ) >> "$BUNDLE"
+        ( cd "$META" && tar -c${COMPRESS_OPT}f - packages ) >> "$BUNDLE"
         ok "packages/ — дописан в бандл"
     fi
 fi
@@ -597,7 +620,7 @@ if [[ -n "${GRP_SEL[appimg]:-}" ]]; then
             printf '%s\n' "$f" >> "$META/appimages/list.txt"
             cp "$f" "$META/appimages/" && n=$((n+1))
         done <<<"${GRP_SEL[appimg]}"
-        ( cd "$META" && tar -cz appimages ) >> "$BUNDLE"
+        ( cd "$META" && tar -c${COMPRESS_OPT}f - appimages ) >> "$BUNDLE"
         ok "appimages/ — дописан в бандл ($n шт.)"
     fi
 fi
@@ -656,13 +679,14 @@ if (( ! DRY )); then
     # резерв meta внутри бандла: если .meta/ на диске потеряется — paths.tsv
     # восстанавливается распаковкой сегмента meta/ (manifest с sha внутрь не
     # положить — рекурсия, он только снаружи)
-    ( cd "$META" && tar -cz --transform "s,^,meta/," paths.tsv programs.txt .exclude-dedup exclude-patterns ) >> "$BUNDLE" 2>/dev/null || ( cd "$META" && tar -cz --transform "s,^,meta/," paths.tsv .exclude-dedup exclude-patterns ) >> "$BUNDLE"
+    ( cd "$META" && tar -c${COMPRESS_OPT}f - --transform "s,^,meta/," paths.tsv programs.txt .exclude-dedup exclude-patterns ) >> "$BUNDLE" 2>/dev/null || \
+( cd "$META" && tar -c${COMPRESS_OPT}f - --transform "s,^,meta/," paths.tsv .exclude-dedup exclude-patterns ) >> "$BUNDLE"
     ok "meta/ — paths.tsv дублирован в бандл"
 fi
 
 # ---------- 10. Самообновление инструмента на SSD ----------
 info "Синхронизация инструмента на SSD..."
-TOOL_FILES=(src/lib.sh src/tui.py src/conf.py configs/mapping.toml configs/exclude_dirs.yaml configs/inventory.yaml configs/selection.yaml skills/os-migrate-tool/SKILL.md pack.sh pack-kitty.sh unpack.sh README.md)
+TOOL_FILES=(src/lib.sh src/tui.py src/conf.py src/progress-line configs/mapping.toml configs/exclude_dirs.yaml configs/inventory.yaml configs/selection.yaml skills/os-migrate-tool/SKILL.md pack.sh pack-kitty.sh unpack.sh README.md)
 if (( DRY )); then
     dry "cp ${TOOL_FILES[*]} -> $TOOL_ROOT/"
 else
@@ -678,7 +702,7 @@ else
     {
         sha256sum "$BUNDLE"
         echo "--- содержимое бандла ---"
-        tar --ignore-zeros -tzf "$BUNDLE"
+        tar --ignore-zeros -t${COMPRESS_OPT}f "$BUNDLE"
     } > "$META/manifest.txt"
     if ln -sfn "$RUN_NAME.tar.gz" "$TOOL_ROOT/archives/latest" 2>/dev/null; then
         ok "manifest.txt записан; latest -> ${RUN_NAME}.tar.gz"

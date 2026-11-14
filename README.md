@@ -31,6 +31,8 @@
 ```bash
 bash pack.sh                 # интерактивно: выбор SSD → чеклист → подтверждение → упаковка
 bash pack.sh --dry-run       # полный прогон без записи на SSD
+bash pack.sh --no-compress   # бандл .tar без сжатия: быстрее, выборочная
+                             # распаковка мгновенная (seek), на SSD ~raw объём
 bash pack-kitty.sh --dry-run # то же в отдельном окне kitty + лог сессии в /tmp (для агента)
 ```
 
@@ -55,7 +57,8 @@ os-migrate-tool/
 ├── README.md                           # самообновляется
 ├── skills/os-migrate-tool/SKILL.md     # скилл для ИИ-агента (самообновляется)
 └── archives/
-    ├── 2026-11-14_ubuntu.tar.gz    # ЕДИНЫЙ бандл прогона (внутри — сегменты
+    ├── 2026-11-14_ubuntu.tar.gz    # ЕДИНЫЙ бандл прогона (.tar.gz или .tar
+    │   │                           #  при --no-compress; внутри — сегменты
     │   │                           #  packages/, appimages/, dotfiles/, data/,
     │   │                           #  agents/, browsers/, flatpak/, … + meta/
     │   │                           #  с резервом paths.tsv)

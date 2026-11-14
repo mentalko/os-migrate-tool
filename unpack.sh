@@ -46,16 +46,26 @@ ok "Тип системы: $SYS_TYPE${OMT_SYS_TYPE:+ (задан OMT_SYS_TYPE)}"
 
 # ---------- 2. Выбор бандла ----------
 [[ -d "$TOOL_DIR/archives" ]] || die "рядом со скриптом нет archives/ — запусти с SSD"
-mapfile -t RUNS < <(ls -1 "$TOOL_DIR/archives"/*.tar.gz 2>/dev/null | sed "s|.*/||; s|\.tar\.gz$||")
-((${#RUNS[@]})) || die "в archives/ нет бандлов (*.tar.gz)"
+mapfile -t RUNS < <(ls -1 "$TOOL_DIR/archives"/*.tar.gz "$TOOL_DIR/archives"/*.tar 2>/dev/null | sed "s|.*/||; s|\.tar\.gz$||; s|\.tar$||" | sort -u)
+((${#RUNS[@]})) || die "в archives/ нет бандлов (*.tar.gz / *.tar)"
 
 RUN_DESC=(); for r in "${RUNS[@]}"; do
-    b="$TOOL_DIR/archives/$r.tar.gz"
-    RUN_DESC+=("$r;$(human "$b")"); done
+    for ext in tar.gz tar; do
+        b="$TOOL_DIR/archives/$r.$ext"
+        [[ -f "$b" ]] && { RUN_DESC+=("$r;$ext, $(human "$b")"); break; }
+    done
+done
 pick=$(ui_menu "Какой бандл восстанавливаем?" "${RUN_DESC[@]}")
 [[ -n "$pick" ]] || die "бандл не выбран"
-BUNDLE="$TOOL_DIR/archives/$pick.tar.gz"
+for ext in tar.gz tar; do
+    b="$TOOL_DIR/archives/$pick.$ext"
+    [[ -f "$b" ]] && { BUNDLE="$b"; break; }
+done
 META="$TOOL_DIR/archives/$pick.meta"
+case "$BUNDLE" in
+    *.tar.gz) ZF="-z";;
+    *)        ZF="";;
+esac
 ok "Бандл: $BUNDLE ($(human "$BUNDLE"))"
 
 command -v python3 >/dev/null 2>&1 || die "нужен python3 (конфиг и TUI)"
@@ -66,7 +76,7 @@ eval "$(python3 "$TOOL_DIR/src/conf.py" \
 # ---------- 3. Список содержимого бандла (1 проход) ----------
 BUNDLE_LIST="$(mktemp /tmp/omt-bundle-list.XXXXXX)"
 info "Читаю содержимое бандла (один проход)..."
-tar --ignore-zeros -tzf "$BUNDLE" > "$BUNDLE_LIST"
+tar --ignore-zeros $ZF -tf "$BUNDLE" > "$BUNDLE_LIST"
 ok "сегментов: $(cut -d/ -f1 "$BUNDLE_LIST" | sort -u | wc -l), членов: $(wc -l < "$BUNDLE_LIST")"
 
 seg_in_bundle() { grep -q "^$1/" "$BUNDLE_LIST"; }
@@ -180,11 +190,11 @@ if (( ! DRY )); then
         META_SEGS=(); for s in packages appimages; do
             [[ " ${SEL[*]} " == *" $s "* ]] && META_SEGS+=("$s"); done
         info "Распаковка в meta: ${META_SEGS[*]} (проход 1/2)..."
-        tar --ignore-zeros -xzf "$BUNDLE" -C "$META" "${META_SEGS[@]}"
+        tar --ignore-zeros $ZF -xf "$BUNDLE" -C "$META" "${META_SEGS[@]}"
     fi
     if ((${#HOME_SEGS[@]})); then
         info "Распаковка в \$HOME: ${HOME_SEGS[*]} (проход 2/2)..."
-        tar --ignore-zeros -xzf "$BUNDLE" -C "$HOME" --strip-components=1 "${HOME_SEGS[@]}"
+        tar --ignore-zeros $ZF -xf "$BUNDLE" -C "$HOME" --strip-components=1 "${HOME_SEGS[@]}"
         ok "распаковано в \$HOME: ${HOME_SEGS[*]}"
     fi
 else
@@ -251,7 +261,7 @@ for s in "${SEL[@]}"; do
             fi
             ;;
         programs)
-            PROGLIST=$(tar --ignore-zeros -xzOf "$BUNDLE" meta/programs.txt 2>/dev/null || true)
+            PROGLIST=$(tar --ignore-zeros $ZF -xOf "$BUNDLE" meta/programs.txt 2>/dev/null || true)
             [[ -n "$PROGLIST" ]] || { info "programs: список пуст"; break; }
             # система: arch-подобная или debian-подобная — варианты установки разные
             SYS="debian"
@@ -298,7 +308,7 @@ FLATPAK_APPS=""
 if [[ -s "$META/packages/flatpak-list.txt" ]]; then
     FLATPAK_APPS=$(cat "$META/packages/flatpak-list.txt")
 elif (( DRY )); then
-    FLATPAK_APPS=$(tar --ignore-zeros -xzOf "$BUNDLE" packages/flatpak-list.txt 2>/dev/null || true)
+    FLATPAK_APPS=$(tar --ignore-zeros $ZF -xOf "$BUNDLE" packages/flatpak-list.txt 2>/dev/null || true)
 fi
 if [[ -n "$FLATPAK_APPS" ]]; then
     while read -r app; do
@@ -315,7 +325,7 @@ APPIMG_LIST=""
 if [[ -s "$META/appimages/list.txt" ]]; then
     APPIMG_LIST=$(cat "$META/appimages/list.txt")
 elif (( DRY )); then
-    APPIMG_LIST=$(tar --ignore-zeros -xzOf "$BUNDLE" appimages/list.txt 2>/dev/null || true)
+    APPIMG_LIST=$(tar --ignore-zeros $ZF -xOf "$BUNDLE" appimages/list.txt 2>/dev/null || true)
 fi
 if [[ -n "$APPIMG_LIST" ]]; then
     while read -r f; do
