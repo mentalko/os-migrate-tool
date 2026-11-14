@@ -237,15 +237,17 @@ def main() -> int:
                    "uv": "uv tool install {}",
                    "pipx": "pipx install {}",
                    "bin": ""}
-    prog_cmd, prog_url = {}, {}
+    prog_cmd, prog_cmd_ubuntu, prog_url = {}, {}, {}
     for sec, tools in (mapping.get("programs") or {}).items():
         for tool, spec in (tools or {}).items():
             key = f"{sec}|{tool}"
-            cmd = str(spec.get("cachyos", "")) or DEFAULT_CMD.get(sec, "").format(tool)
-            prog_cmd[key] = cmd
+            def_cmd = DEFAULT_CMD.get(sec, "").format(tool)
+            prog_cmd[key] = str(spec.get("cachyos", "")) or def_cmd
+            prog_cmd_ubuntu[key] = str(spec.get("ubuntu", "")) or def_cmd
             if spec.get("url"):
                 prog_url[key] = str(spec["url"])
     assoc("PROG_CMD", prog_cmd)
+    assoc("PROG_CMD_UBUNTU", prog_cmd_ubuntu)
     assoc("PROG_URL", prog_url)
 
     print("\n".join(out))

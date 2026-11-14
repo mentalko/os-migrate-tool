@@ -36,7 +36,8 @@ pack.sh ──► SSD/os-migrate-tool/ ──► unpack.sh
 ## Конфигурация: inventory.yaml + selection.yaml
 
 Три YAML-файла в `configs/`; парсит `src/conf.py` и печатает bash-код для `eval` в pack.sh
-(третий файл — exclude_dirs → `EXCL_PATTERNS_ARR` + `APPIMG_SKIP_ZERO`):
+(exclude_dirs → `EXCL_PATTERNS_ARR` + `APPIMG_SKIP_ZERO`; mapping.toml →
+`MAPPING_*`, `PROG_CMD`/`PROG_CMD_UBUNTU`/`PROG_URL`):
 массивы путей (`AGENT_DIRS_ARR`, `DOT_ARR`, `AGENT_SESSIONS_ARR`, …), assoc
 `DESC` (описания), `TUI_GRP_STATE` (ON/OFF по группам), `TUI_SEL`
 (`группа|путь` → ON/OFF), `COMPRESS_ESTIMATE`. Значения квотируются

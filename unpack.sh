@@ -116,7 +116,7 @@ if (( DRY )); then MISSING="/tmp/missing-mapping.dryrun.txt"; else MISSING="$MET
 declare -A SEG_ACTION   # сегмент -> "" | backup | (skip отсеется)
 HOME_SEGS=()            # сегменты, распаковываемые в $HOME
 for s in "${SEL[@]}"; do
-    case "$s" in packages|appimages) continue;; esac
+    case "$s" in packages|appimages|programs) continue;; esac
     if (( DRY )); then
         tops=$(seg_conflicts "$s")
         if [[ -n "$tops" ]]; then
@@ -234,28 +234,37 @@ for s in "${SEL[@]}"; do
             fi
             ;;
         programs)
-            if (( DRY )); then
-                PROGLIST=$(tar --ignore-zeros -xzOf "$BUNDLE" meta/programs.txt 2>/dev/null || true)
-            else
-                PROGLIST=$(tar --ignore-zeros -xzOf "$BUNDLE" meta/programs.txt 2>/dev/null || true)
-            fi
+            PROGLIST=$(tar --ignore-zeros -xzOf "$BUNDLE" meta/programs.txt 2>/dev/null || true)
             [[ -n "$PROGLIST" ]] || { info "programs: список пуст"; break; }
-            info "Программы (переустановка):"
-            while IFS='|' read -r sec tool; do
+            # система: arch-подобная или debian-подобная — варианты установки разные
+            SYS="debian"
+            [[ "${ID:-}" == cachyos || "${ID_LIKE:-}" == *arch* ]] && SYS="arch"
+            info "Программы — пошагово (система: $SYS)..."
+            # fd 3: stdin остаётся tty для интерактивного меню
+            while IFS='|' read -r sec tool <&3; do
                 [[ -n "$sec" ]] || continue
-                cmd="${PROG_CMD[$sec|$tool]:-}"
-                case "$sec" in
-                    bin)
-                        url="${PROG_URL[$sec|$tool]:-}"
-                        ok "  $tool — файл приедет с dotfiles (~/.local/bin); переустановка: ${url:-см. configs/mapping.toml}"
-                        ;;
+                key="$sec|$tool"
+                d="${DESC[$tool]:-$tool}"   # desc из configs/inventory.yaml
+                if [[ $SYS == arch ]]; then
+                    install_cmd="${PROG_CMD[$key]:-}"
+                else
+                    install_cmd="${PROG_CMD_UBUNTU[$key]:-}"
+                fi
+                url="${PROG_URL[$key]:-}"
+                opts=()
+                [[ -n "$install_cmd" ]] && opts+=("$install_cmd;выполнить команду установки")
+                [[ -n "$url" ]] && opts+=("url;показать ссылку: $url")
+                opts+=("skip;пропустить")
+                ch=$(ui_menu "$tool — $d. Как установить?" "${opts[@]}")
+                case "$ch" in
+                    url) ok "  $tool — $url";;
+                    skip|"") warn "  $tool — пропущен";;
                     *)
-                        [[ -n "$cmd" ]] || continue
-                        echo "  \$ $cmd"
-                        (( DRY )) && dry "$cmd — выполнено" || { eval "$cmd" || warn "  $tool — установка не удалась"; }
+                        echo "  \$ $ch"
+                        (( DRY )) && dry "$ch — выполнено" || { eval "$ch" && ok "  $tool — установлен" || warn "  $tool — установка не удалась"; }
                         ;;
                 esac
-            done <<<"$PROGLIST"
+            done 3<<<"$PROGLIST"
             ;;
     esac
 done

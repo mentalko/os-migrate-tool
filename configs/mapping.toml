@@ -411,6 +411,7 @@ url = "https://docs.astral.sh/ruff/"
 url = "https://frappeframework.com/docs"
 
 [programs.bin.qodercli]
+ubuntu = "curl -fsSL https://qoder.com/install | bash"
 cachyos = "yay -S qoder-cli"
 url = "https://qoder.com"
 
@@ -420,17 +421,21 @@ ubuntu = "curl -fsSL https://claude.ai/install.sh | bash"
 url = "https://claude.com/claude-code"
 
 [programs.bin.copilot]
+ubuntu = "curl -fsSL https://gh.io/copilot-install | bash"
 cachyos = "yay -S github-copilot-cli"
 url = "https://github.com/features/copilot/cli"
 
 [programs.bin.kiro-cli]
+ubuntu = "curl -fsSL https://cli.kiro.dev/install | bash"   # есть и .deb: desktop-release.q.us-east-1.amazonaws.com/latest/kiro-cli.deb
 cachyos = "yay -S kiro-cli"
 url = "https://kiro.dev"
 
 [programs.bin.agy]
+ubuntu = "curl -fsSL https://antigravity.google/cli/install.sh | bash"
 url = "https://antigravity.google"
 
 [programs.bin.herdr]
+ubuntu = "curl -fsSL https://herdr.dev/install.sh | sh"
 url = "https://herdr.dev"
 
 [programs.bin."cursor-agent"]
@@ -439,4 +444,5 @@ ubuntu = "curl -fsSL https://cursor.com/install | bash"
 url = "https://cursor.com/cli"
 
 [programs.bin.devin]
+ubuntu = "curl -fsSL https://cli.devin.ai/install.sh | bash"
 url = "https://devin.ai"
