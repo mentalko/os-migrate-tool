@@ -574,16 +574,19 @@ seg_tar() { # $1=каталог сегмента в бандле, $2=exclude-ф�
         # procsub инлайном: fd /dev/fd/N живёт только внутри команды tar
         local -a pre=()
         [[ -n "$excl" ]] && pre=( --exclude-from="$excl" )
-        if ( cd "$HOME" && tar -c${COMPRESS_OPT}f - --transform "s,^,$seg/," "${pre[@]}" \
+        tar_rc=0
+        ( cd "$HOME" && tar -c${COMPRESS_OPT}f - --transform "s,^,$seg/," "${pre[@]}" \
             --checkpoint=200 --checkpoint-action="exec=$OMT_LIB_DIR/progress-line \"$seg\" $total_bytes" \
-            --files-from <(printf '%s\n' "${paths[@]}") ) >> "$BUNDLE"; then
-            local w=24 fill=24 empty=0 i bar=""
-            for ((i = 0; i < fill; i++)); do bar+="▓"; done
-            for ((i = 0; i < empty; i++)); do bar+="░"; done
+            --files-from <(printf '%s\n' "${paths[@]}") ) >> "$BUNDLE" || tar_rc=$?
+        local w=24 fill=24 empty=0 i bar=""
+        for ((i = 0; i < fill; i++)); do bar+="▓"; done
+        for ((i = 0; i < empty; i++)); do bar+="░"; done
+        if (( tar_rc == 0 )); then
             ok "$seg/ [$bar] 100% — дописан в бандл (${#paths[@]} путей)"
         else
-            local rc=$?
-            die "$seg/: tar завершился с ошибкой (rc=$rc) — сегмент записался частично, бандл неполный"
+            # rc 1/2 = часть файлов пропущена (нет доступа / изменились при чтении) —
+            # полный список tar написал в лог выше; прогон продолжается
+            warn "$seg/ [$bar] — дописан с пропусками (tar rc=$tar_rc, список выше в логе)"
         fi
     fi
     return 0
