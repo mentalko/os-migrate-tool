@@ -91,7 +91,7 @@ SUB_KEYS() { # теги подпунктов группы в порядке до
     return 0
 }
 
-MG_GROUPS=(packages appimages dotfiles data agents appdata browsers)
+MG_GROUPS=(packages appimages dotfiles data agents programs appdata browsers)
 if arr_nonempty "${FLATPAK_ARR[@]}";   then MG_GROUPS+=(flatpak);   fi
 if arr_nonempty "${TOOLCHAIN_ARR[@]}"; then MG_GROUPS+=(toolchain); fi
 if arr_nonempty "${TMP_ARR[@]}";       then MG_GROUPS+=(tmp);       fi
@@ -162,6 +162,7 @@ GRP_DESC[agents]="AI-агенты: сессии, задачи, скиллы + и
 GRP_DESC[browsers]="профили браузеров (пароли, куки, расширения)";                GRP_SIZE[browsers]=0
 GRP_DESC[data]="данные: ~/Documents и т.п.";                 GRP_SIZE[data]=0
 GRP_DESC[appdata]="Telegram (tdata), Throne, обои";          GRP_SIZE[appdata]=0
+GRP_DESC[programs]="CLI-инструменты: npm/uv/pipx (переустановка), bin"; GRP_SIZE[programs]=0
 GRP_DESC[flatpak]="данные flatpak-приложений (.var)";        GRP_SIZE[flatpak]=0
 GRP_DESC[toolchain]="тулчейны: rustup/nvm/bun/npm/vscode";   GRP_SIZE[toolchain]=0
 GRP_DESC[tmp]="пересоздаваемые данные (/tmp и т.п.)";        GRP_SIZE[tmp]=0
@@ -169,7 +170,7 @@ GRP_DESC[extra]="дополнительные пути из inventory.yaml";    
 
 # ---------- дефолты чекбоксов: selection.yaml (раскладка conf.py) ----------
 # Группа -> её подпункты; точечные [группа]"путь" переопределяют (ON/OFF).
-declare -A SUB_STATE
+declare -A SUB_STATE PROG_SEC_STATE PROG_TOOL_STATE
 for g in "${MG_GROUPS[@]}"; do GRP_STATE[$g]="${TUI_GRP_STATE[$g]:-ON}"; done
 for k in "${!SUBS[@]}"; do
     g="${k%%|*}"
@@ -180,6 +181,15 @@ for k in "${!SUBS[@]}"; do
     IFS=';' read -r _ _ _ p <<<"${SUBS[$k]}"
     st="${TUI_SEL[${g}|${p}]:-${TUI_SEL[${g}|$(basename "$p")]:-}}"
     [[ -n "$st" ]] && SUB_STATE[$k]="$st"
+done
+# программы (3-й уровень): секции наследуют группу, тулы — секцию + точечный selection
+for sec in "${PROG_SECS_ARR[@]}"; do
+    PROG_SEC_STATE["programs|$sec"]="${TUI_GRP_STATE[programs]:-ON}"
+    for tool in "PROG_${sec^^}_ARR[@]"; do
+        for t in "${!tool}"; do
+            PROG_TOOL_STATE["programs|$sec|$t"]="${TUI_SEL[programs|$t]:-${TUI_GRP_STATE[programs]:-ON}}"
+        done
+    done
 done
 
 # ---------- 5. TUI: группы с разворотом подпунктов на месте ----------
@@ -215,13 +225,28 @@ _tree_feed() { # TREE-протокол для tui.py: группы + подпу�
             IFS=';' read -r d s h p <<<"${SUBS[$g|$k]}"
             printf 'S;%s;%s;%s;%s;%s;%s;%s\n' "$g" "$k" "$d" "${s:-0}" "${SUB_STATE[$g|$k]}" "$h" "$p"
         done < <(SUB_KEYS "$g")
+        # 3-й уровень: секции и тулы (group_programs)
+        if [[ "$g" == programs ]]; then
+            for sec in "${PROG_SECS_ARR[@]}"; do
+                printf 'SEC;%s;%s;%s;%s;%s\n' "$g" "$sec" "менеджер: $sec" "0" "${PROG_SEC_STATE[programs|$sec]}"
+                for t in "PROG_${sec^^}_ARR[@]"; do
+                    for tool in "${!tool}"; do
+                        d=$(desc_of "$tool" "$tool")
+                        printf 'T;%s;%s;%s;%s;%s;%s;%s;%s\n' "$g" "$sec" "$tool" "$d" "0" "${PROG_TOOL_STATE[programs|$sec|$tool]}" "переустановка на Cachy" ""
+                    done
+                done
+            done
+        fi
     done
     return 0
 }
 
-_ui_tree_python() { # tui.py возвращает финальные состояния — раскладываем в словари
-    local out line key _rc=0
-    out=$( _tree_feed | OMT_TUI_TITLE="Что пакуем?" python3 "$OMT_LIB_DIR/tui.py" TREE ) || _rc=$?
+_ui_tree_python() { # tui.py пишет финальные состояния в файл — раскладываем в словари
+    local line key _rc=0
+    local state_file
+    state_file="$(mktemp /tmp/omt-tui-state.XXXXXX)"
+    OMT_STATE="$state_file" OMT_TUI_TITLE="Что пакуем?" \
+        python3 "$OMT_LIB_DIR/tui.py" TREE < <(_tree_feed) || _rc=$?
     if (( _rc == 1 )); then              # q/Esc — отмена
         warn "Отменено пользователем — ничего не записано."
         exit 0
@@ -229,10 +254,13 @@ _ui_tree_python() { # tui.py возвращает финальные состо�
     (( _rc == 0 )) || die "tui: дерево завершилось с ошибкой ($_rc)"
     while IFS= read -r line; do
         case "$line" in
-            G\;*) key="${line#G;}"; GRP_STATE[${key%;*}]="${line##*;}";;
-            S\;*) key="${line#S;}"; SUB_STATE[${key%;*}]="${line##*;}";;
+            G\;*)   key="${line#G;}";   GRP_STATE[${key%;*}]="${line##*;}";;
+            SEC\;*) key="${line#SEC;}"; PROG_SEC_STATE[${key%;*}]="${line##*;}";;
+            T\;*)   key="${line#T;}";   PROG_TOOL_STATE[${key%;*}]="${line##*;}";;
+            S\;*)   key="${line#S;}";   SUB_STATE[${key%;*}]="${line##*;}";;
         esac
-    done <<<"$out"
+    done < "$state_file"
+    rm -f "$state_file"
     return 0
 }
 
@@ -406,7 +434,18 @@ for g in "${MG_GROUPS[@]}"; do [[ ${GRP_STATE[$g]} == ON ]] && chosen=$((chosen+
 declare -A SIZE_M GRP_SIZE_PLAN GRP_SEL   # GRP_SEL[группа] = пути через \n
 SEL=()
 for g in "${MG_GROUPS[@]}"; do
-    if [[ ${GRP_HAS_SUB[$g]:-} ]]; then
+    if [[ "$g" == programs ]]; then
+        # программы: файлов нет — выбранные тулы уезжают в meta/programs.txt
+        for sec in "${PROG_SECS_ARR[@]}"; do
+            for arr_ref in "PROG_${sec^^}_ARR[@]"; do
+                for tool in "${!arr_ref}"; do
+                    [[ ${PROG_TOOL_STATE[programs|$sec|$tool]:-} == ON ]] || continue
+                    PROGS_SEL+="$sec|$tool"$'\n'
+                done
+            done
+        done
+        [[ -n "${PROGS_SEL:-}" ]] && GRP_SIZE_PLAN[programs]=0
+    elif [[ ${GRP_HAS_SUB[$g]:-} ]]; then
         # галочка группы — массовый переключатель; решают состояния подпунктов:
         # ON-подпункт едет даже внутри выключенной группы (см. selection [extra])
         while IFS= read -r k; do
@@ -445,10 +484,10 @@ warn "Сырой объём: $(hM "$total")   оценка после tar.gz: ~$
 
 info "Планируемые архивы:"
 declare -A PLAN_ROWS=( [packages]="packages/" [appimages]="appimages/" [dotfiles]="dotfiles/" [data]="data/" \
-            [agents]="agents/" [appdata]="appdata/" [browsers]="browsers/" [flatpak]="flatpak/" \
+            [agents]="agents/" [programs]="programs/" [appdata]="appdata/" [browsers]="browsers/" [flatpak]="flatpak/" \
             [toolchain]="toolchain/" [tmp]="tmp/" [extra]="extra/" )
 plan_total=0
-for grp in packages appimages dotfiles data agents appdata browsers flatpak toolchain tmp extra; do
+for grp in packages appimages dotfiles data agents programs appdata browsers flatpak toolchain tmp extra; do
     [[ -n "${GRP_SIZE_PLAN[$grp]:-}" ]] || continue
     plan_total=$(( plan_total + ${GRP_SIZE_PLAN[$grp]} ))
     echo "    ${PLAN_ROWS[$grp]}  —  $(hM "${GRP_SIZE_PLAN[$grp]}")"
@@ -583,6 +622,12 @@ write_paths() {
     if [[ -n "${GRP_SIZE_PLAN[packages]:-}" ]]; then
         echo -e "packages\tpackages\t15M\t(manifests: dpkg/flatpak/code/dconf/cron/systemd)\t${RUN_NAME}.tar.gz:packages/\t\$HOME"
     fi
+    if [[ -n "${PROGS_SEL:-}" ]]; then
+        while IFS= read -r pt; do
+            [[ -n "$pt" ]] || continue
+            echo -e "programs\t${pt%%|*}\t-\t(menеджер: ${pt%%|*})\t${RUN_NAME}.tar.gz:meta/programs.txt\tпереустановка на Cachy"
+        done <<<"$PROGS_SEL"
+    fi
     if [[ -n "${GRP_SEL[appimg]:-}" ]]; then
         while IFS= read -r f; do
             [[ -n "$f" ]] || continue
@@ -604,10 +649,14 @@ write_paths() {
 if (( ! DRY )); then
     write_paths > "$META/paths.tsv"
     ok "paths.tsv записан ($(($(wc -l < "$META/paths.tsv")-1)) путей) — что, откуда и куда"
+    if [[ -n "${PROGS_SEL:-}" ]]; then
+        printf '%s' "$PROGS_SEL" > "$META/programs.txt"
+        ok "programs.txt записан ($(wc -l < "$META/programs.txt") программ) — переустановка на Cachy"
+    fi
     # резерв meta внутри бандла: если .meta/ на диске потеряется — paths.tsv
     # восстанавливается распаковкой сегмента meta/ (manifest с sha внутрь не
     # положить — рекурсия, он только снаружи)
-    ( cd "$META" && tar -cz --transform "s,^,meta/," paths.tsv .exclude-dedup exclude-patterns ) >> "$BUNDLE"
+    ( cd "$META" && tar -cz --transform "s,^,meta/," paths.tsv programs.txt .exclude-dedup exclude-patterns ) >> "$BUNDLE" 2>/dev/null || ( cd "$META" && tar -cz --transform "s,^,meta/," paths.tsv .exclude-dedup exclude-patterns ) >> "$BUNDLE"
     ok "meta/ — paths.tsv дублирован в бандл"
 fi
 

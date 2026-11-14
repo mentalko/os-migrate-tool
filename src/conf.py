@@ -187,6 +187,13 @@ def main() -> int:
             continue
         arr(f"{g.upper()}_ARR", inv.get(f"group_{g}", {}).get("paths", []))
 
+    # пользовательские программы: group_programs с секциями-менеджерами
+    progs = inv.get("group_programs", {})
+    prog_secs = list(progs.keys())
+    arr("PROG_SECS_ARR", prog_secs)
+    for sec in prog_secs:
+        arr(f"PROG_{sec.upper()}_ARR", progs.get(sec, []))
+
     assoc("DESC", inv.get("desc", {}) or {})
 
     # selection: group_<имя>.on — группа; остальные ключи — точечные on/off
@@ -224,6 +231,22 @@ def main() -> int:
     assoc("MAPPING_CMD", m_cmd)
     assoc("MAPPING_URL", m_url)
     assoc("APPIMG_URL", {k: str(v.get("url", "")) for k, v in (mapping.get("appimages") or {}).items()})
+
+    # программы: [programs.<секция>.<тул>] → команда установки (дефолт по секции)
+    DEFAULT_CMD = {"npm": "npm i -g {}",
+                   "uv": "uv tool install {}",
+                   "pipx": "pipx install {}",
+                   "bin": ""}
+    prog_cmd, prog_url = {}, {}
+    for sec, tools in (mapping.get("programs") or {}).items():
+        for tool, spec in (tools or {}).items():
+            key = f"{sec}|{tool}"
+            cmd = str(spec.get("cachyos", "")) or DEFAULT_CMD.get(sec, "").format(tool)
+            prog_cmd[key] = cmd
+            if spec.get("url"):
+                prog_url[key] = str(spec["url"])
+    assoc("PROG_CMD", prog_cmd)
+    assoc("PROG_URL", prog_url)
 
     print("\n".join(out))
     return 0

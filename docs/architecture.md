@@ -43,6 +43,12 @@ pack.sh ──► SSD/os-migrate-tool/ ──► unpack.sh
 `shlex.quote`; assoc-элементы эмитятся строго как `[ключ]=значение` (голый
 `ключ=значение` внутри `declare -A=(…)` bash не парсит как subscript).
 
+**configs/inventory.yaml** содержит `group_programs` — секции-менеджеры
+(npm/uv/pipx/bin) со списками тулзов; conf.py эмитит `PROG_SECS_ARR` +
+`PROG_<SEC>_ARR`, а из mapping.toml `[programs.<сек>.<тул]` — `PROG_CMD`
+(дефолт по секции: `npm i -g X` / `uv tool install X` / `pipx install X`)
+и `PROG_URL`. TUI рисует их третьим уровнем (SEC/T-строки протокола).
+
 Парсер — **YAML-подмножество на stdlib** (PyYAML не нужен): вложенные
 отображения (отступы 2 пробела), блочные списки `- `, скаляры
 true/false/числа/строки, комментарии только целыми строками + инлайн ` #`
@@ -85,6 +91,8 @@ ON-подпункт едет даже внутри выключенной гру
 
 ```
 TREE:  G;<group>;<desc>;<sizeMB>;<ON|OFF>
+       SEC;<group>;<section>;<desc>;<sizeMB>;<ON|OFF>     — секция (3-й уровень)
+       T;<group>;<section>;<tag>;<desc>;<sizeMB>;<ON|OFF>;<hint>;<path>
        S;<group>;<tag>;<desc>;<sizeMB>;<ON|OFF>;<hint>;<path>
 MENU:  M;<tag>;<desc>;<hint>
 CHECK: C;<tag>;<desc>;<ON|OFF>;<hint>

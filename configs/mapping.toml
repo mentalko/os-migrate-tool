@@ -15,306 +15,428 @@
 
 [packages."7zip"]
 name = "7zip"
+ubuntu = "sudo apt install -y 7zip"
 status = "native"
 cachyos = "sudo pacman -S 7zip"
 
 [packages."zsh"]
 name = "zsh"
+ubuntu = "sudo apt install -y zsh"
 status = "native"
 cachyos = "sudo pacman -S zsh"
 
 [packages."git"]
 name = "git"
+ubuntu = "sudo apt install -y git"
 status = "native"
 cachyos = "sudo pacman -S git"
 
 [packages."curl"]
 name = "curl"
+ubuntu = "sudo apt install -y curl"
 status = "native"
 cachyos = "sudo pacman -S curl"
 
 [packages."wget"]
 name = "wget"
+ubuntu = "sudo apt install -y wget"
 status = "native"
 cachyos = "sudo pacman -S wget"
 
 [packages."htop"]
 name = "htop"
+ubuntu = "sudo apt install -y htop"
 status = "native"
 cachyos = "sudo pacman -S htop"
 
 [packages."jq"]
 name = "jq"
+ubuntu = "sudo apt install -y jq"
 status = "native"
 cachyos = "sudo pacman -S jq"
 
 [packages."ncdu"]
 name = "ncdu"
+ubuntu = "sudo apt install -y ncdu"
 status = "native"
 cachyos = "sudo pacman -S ncdu"
 
 [packages."ripgrep"]
 name = "ripgrep"
+ubuntu = "sudo apt install -y ripgrep"
 status = "native"
 cachyos = "sudo pacman -S ripgrep"
 
 [packages."sqlite3"]
 name = "sqlite3"
+ubuntu = "sudo apt install -y sqlite3"
 status = "native"
 cachyos = "sudo pacman -S sqlite"
 
 [packages."nmap"]
 name = "nmap"
+ubuntu = "sudo apt install -y nmap"
 status = "native"
 cachyos = "sudo pacman -S nmap"
 
 [packages."net-tools"]
 name = "net-tools"
+ubuntu = "sudo apt install -y net-tools"
 status = "native"
 cachyos = "sudo pacman -S net-tools"
 
 [packages."openvpn"]
 name = "openvpn"
+ubuntu = "sudo apt install -y openvpn"
 status = "native"
 cachyos = "sudo pacman -S openvpn"
 
 [packages."p7zip-full"]
 name = "p7zip-full"
+ubuntu = "sudo apt install -y p7zip-full"
 status = "native"
 cachyos = "sudo pacman -S p7zip"
 
 [packages."unzip"]
 name = "unzip"
+ubuntu = "sudo apt install -y unzip"
 status = "native"
 cachyos = "sudo pacman -S unzip"
 
 [packages."zip"]
 name = "zip"
+ubuntu = "sudo apt install -y zip"
 status = "native"
 cachyos = "sudo pacman -S zip"
 
 [packages."ffmpeg"]
 name = "ffmpeg"
+ubuntu = "sudo apt install -y ffmpeg"
 status = "native"
 cachyos = "sudo pacman -S ffmpeg"
 
 [packages."adb"]
 name = "adb"
+ubuntu = "sudo apt install -y adb"
 status = "native"
 cachyos = "sudo pacman -S android-tools"
 
 [packages."fastboot"]
 name = "fastboot"
+ubuntu = "sudo apt install -y fastboot"
 status = "skip"
 note = "входит в android-tools"
 
 [packages."build-essential"]
 name = "build-essential"
+ubuntu = "sudo apt install -y build-essential"
 status = "native"
 cachyos = "sudo pacman -S base-devel"
 note = "gcc/make и пр."
 
 [packages."gdb"]
 name = "gdb"
+ubuntu = "sudo apt install -y gdb"
 status = "native"
 cachyos = "sudo pacman -S gdb"
 
 [packages."ghostscript"]
 name = "ghostscript"
+ubuntu = "sudo apt install -y ghostscript"
 status = "native"
 cachyos = "sudo pacman -S ghostscript"
 
 [packages."ninja-build"]
 name = "ninja-build"
+ubuntu = "sudo apt install -y ninja-build"
 status = "native"
 cachyos = "sudo pacman -S ninja"
 
 [packages."lshw"]
 name = "lshw"
+ubuntu = "sudo apt install -y lshw"
 status = "native"
 cachyos = "sudo pacman -S lshw"
 
 [packages."lvm2"]
 name = "lvm2"
+ubuntu = "sudo apt install -y lvm2"
 status = "native"
 cachyos = "sudo pacman -S lvm2"
 
 [packages."pigz"]
 name = "pigz"
+ubuntu = "sudo apt install -y pigz"
 status = "native"
 cachyos = "sudo pacman -S pigz"
 
 [packages."pv"]
 name = "pv"
+ubuntu = "sudo apt install -y pv"
 status = "native"
 cachyos = "sudo pacman -S pv"
 
 [packages."acl"]
 name = "acl"
+ubuntu = "sudo apt install -y acl"
 status = "skip"
 note = "входит в базу Arch"
 
 [packages."python-is-python3"]
 name = "python-is-python3"
+ubuntu = "sudo apt install -y python-is-python3"
 status = "native"
 cachyos = "sudo pacman -S python"
 
 [packages."pipx"]
 name = "pipx"
+ubuntu = "sudo apt install -y pipx"
 status = "native"
 cachyos = "sudo pacman -S python-pipx"
 
 [packages."docker-ce"]
 name = "docker-ce"
+ubuntu = "sudo apt install -y docker-ce"
 status = "native"
 cachyos = "sudo pacman -S docker docker-compose-plugin"
 note = "+ usermod -aG docker $USER"
 
 [packages."redis-server"]
 name = "redis-server"
+ubuntu = "sudo apt install -y redis-server"
 status = "native"
 cachyos = "sudo pacman -S redis"
 
 [packages."syncthing"]
 name = "syncthing"
+ubuntu = "sudo apt install -y syncthing"
 status = "native"
 cachyos = "sudo pacman -S syncthing"
 note = "+ systemctl --user enable syncthing"
 
 [packages."mariadb-server"]
 name = "mariadb-server"
+ubuntu = "sudo apt install -y mariadb-server"
 status = "native"
 cachyos = "sudo pacman -S mariadb"
 note = "mariadb-install-db --user=mysql перед первым стартом"
 
 [packages."aptitude"]
 name = "aptitude"
+ubuntu = "sudo apt install -y aptitude"
 status = "skip"
 note = "apt-специфика"
 
 [packages."colord"]
 name = "colord"
+ubuntu = "sudo apt install -y colord"
 status = "skip"
 note = "входит в рабочий стол"
 
 [packages."firefox"]
 name = "firefox"
+ubuntu = "sudo apt install -y firefox"
 status = "native"
 cachyos = "sudo pacman -S firefox"
 
 [packages."alacritty"]
 name = "alacritty"
+ubuntu = "sudo apt install -y alacritty"
 status = "native"
 cachyos = "sudo pacman -S alacritty"
 
 [packages."kitty"]
 name = "kitty"
+ubuntu = "sudo apt install -y kitty"
 status = "native"
 cachyos = "sudo pacman -S kitty"
 
 [packages."ghostty"]
 name = "ghostty"
+ubuntu = "sudo apt install -y ghostty"
 status = "native"
 cachyos = "sudo pacman -S ghostty"
 
 [packages."cool-retro-term"]
 name = "cool-retro-term"
+ubuntu = "sudo apt install -y cool-retro-term"
 status = "native"
 cachyos = "sudo pacman -S cool-retro-term"
 
 [packages."nautilus"]
 name = "nautilus"
+ubuntu = "sudo apt install -y nautilus"
 status = "native"
 cachyos = "sudo pacman -S nautilus"
 
 [packages."file-roller"]
 name = "file-roller"
+ubuntu = "sudo apt install -y file-roller"
 status = "native"
 cachyos = "sudo pacman -S file-roller"
 
 [packages."evince"]
 name = "evince"
+ubuntu = "sudo apt install -y evince"
 status = "native"
 cachyos = "sudo pacman -S evince"
 
 [packages."baobab"]
 name = "baobab"
+ubuntu = "sudo apt install -y baobab"
 status = "native"
 cachyos = "sudo pacman -S baobab"
 
 [packages."neofetch"]
 name = "neofetch"
+ubuntu = "sudo apt install -y neofetch"
 status = "native"
 cachyos = "sudo pacman -S neofetch"
 
 [packages."google-chrome-stable"]
 name = "google-chrome-stable"
+ubuntu = "sudo apt install -y google-chrome-stable"
 status = "aur"
 cachyos = "yay -S google-chrome-stable"
 
 [packages."warp-terminal"]
 name = "warp-terminal"
+ubuntu = "sudo apt install -y warp-terminal"
 status = "aur"
 cachyos = "yay -S warp-terminal"
 
 [packages."psensor"]
 name = "psensor"
+ubuntu = "sudo apt install -y psensor"
 status = "aur"
 cachyos = "yay -S psensor"
 
 [packages."localsend"]
 name = "localsend"
+ubuntu = "sudo apt install -y localsend"
 status = "aur"
 cachyos = "yay -S localsend-bin"
 
 [packages."nekoray"]
 name = "nekoray"
+ubuntu = "sudo apt install -y nekoray"
 status = "aur"
 cachyos = "yay -S nekoray"
 
 [packages."cherrystudio"]
 name = "cherrystudio"
+ubuntu = "sudo apt install -y cherrystudio"
 status = "aur"
 cachyos = "yay -S cherry-studio-bin"
 
 [packages."chatgpt"]
 name = "chatgpt"
+ubuntu = "sudo apt install -y chatgpt"
 status = "manual"
 note = "проверить AUR (chatgpt-desktop), иначе веб/AppImage"
 # url = "https://…"  ← добавить актуальную ссылку
 
 [packages."folo"]
 name = "folo"
+ubuntu = "sudo apt install -y folo"
 status = "manual"
 note = "проверить AUR, иначе вручную"
 # url = "https://…"  ← добавить актуальную ссылку
 
 [packages."droidcam-client"]
 name = "droidcam-client"
+ubuntu = "sudo apt install -y droidcam-client"
 status = "aur"
 cachyos = "yay -S droidcam"
 
 [packages."qoder"]
 name = "qoder"
+ubuntu = "sudo apt install -y qoder"
 status = "skip"
 note = "AppImage/с сайта"
 
 [packages."paseo"]
 name = "paseo"
+ubuntu = "sudo apt install -y paseo"
 status = "skip"
 note = "ставится вручную"
 
 [packages."genoffice"]
 name = "genoffice"
+ubuntu = "sudo apt install -y genoffice"
 status = "skip"
 note = "ставится вручную"
 
 [packages."open-whispr"]
 name = "open-whispr"
+ubuntu = "sudo apt install -y open-whispr"
 status = "skip"
 note = "ставится вручную"
 
 [packages."snapd"]
 name = "snapd"
+ubuntu = "sudo apt install -y snapd"
 status = "skip"
 note = "snap не переносится"
+
+# --- пользовательские CLI-программы: переустановка на новой системе ---
+# секция = менеджер (npm/uv/pipx — команда по умолчанию; bin — бинарники).
+# cachyos/ubuntu можно переопределить per-tool; url печатается unpack'ом.
+
+[programs.npm.cline]
+url = "https://cline.bot"
+
+[programs.npm."@pen.dev/cli"]
+url = "https://pen.dev"
+
+[programs.npm."@trailhq/trail-code"]
+url = "https://github.com/trailhq/trail-code"
+
+[programs.npm.neonctl]
+url = "https://neon.com/docs/reference/neonctl"
+
+[programs.npm."@qwen-code/qwen-code"]
+url = "https://github.com/QwenLM/qwen-code"
+
+[programs.uv.browser-use]
+url = "https://browser-use.com"
+
+[programs.uv.graphifyy]
+url = "https://github.com/pantera84/graphifyy"
+
+[programs.uv.ruff]
+url = "https://docs.astral.sh/ruff/"
+
+[programs.pipx.frappe-bench]
+url = "https://frappeframework.com/docs"
+
+[programs.bin.qodercli]
+cachyos = "yay -S qoder-cli"
+url = "https://qoder.com"
+
+[programs.bin.claude]
+cachyos = "curl -fsSL https://claude.ai/install.sh | bash"
+ubuntu = "curl -fsSL https://claude.ai/install.sh | bash"
+url = "https://claude.com/claude-code"
+
+[programs.bin.copilot]
+cachyos = "yay -S github-copilot-cli"
+url = "https://github.com/features/copilot/cli"
+
+[programs.bin.kiro-cli]
+cachyos = "yay -S kiro-cli"
+url = "https://kiro.dev"
+
+[programs.bin.agy]
+url = "https://antigravity.google"
+
+[programs.bin.herdr]
+url = "https://herdr.dev"
+
+[programs.bin."cursor-agent"]
+cachyos = "curl -fsSL https://cursor.com/install | bash"
+ubuntu = "curl -fsSL https://cursor.com/install | bash"
+url = "https://cursor.com/cli"
+
+[programs.bin.devin]
+url = "https://devin.ai"

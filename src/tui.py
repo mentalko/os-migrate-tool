@@ -70,6 +70,7 @@ def parse_stdin():
     # режим — argv[1] (передаётся вызовом), в stdin — только пункты
     mode = (sys.argv[1] if len(sys.argv) > 1 else '').strip().upper()
     groups, subs, items = [], {}, []
+    secs, sectools = {}, {}   # 3-й уровень: secs[g]=секции, sectools[g|sec]=тулы
     for line in sys.stdin:
         line = line.rstrip('\n')
         if not line:
@@ -79,6 +80,16 @@ def parse_stdin():
             if mode == 'TREE' and p[0] == 'G':
                 groups.append({'g': p[1], 'desc': p[2], 'size': int(p[3] or 0),
                                'on': p[4] == 'ON', 'expanded': False})
+            elif mode == 'TREE' and p[0] == 'SEC':
+                # 3-й уровень: секция внутри группы (напр. programs → npm/uv/pipx/bin)
+                secs.setdefault(p[1], []).append(
+                    {'g': p[1], 'name': p[2], 'desc': p[3], 'size': int(p[4] or 0),
+                     'on': p[5] == 'ON', 'expanded': False})
+            elif mode == 'TREE' and p[0] == 'T':
+                sectools.setdefault(f"{p[1]}|{p[2]}", []).append(
+                    {'tag': p[3], 'desc': p[4], 'size': int(p[5] or 0),
+                     'on': p[6] == 'ON', 'hint': p[7] if len(p) > 7 else '',
+                     'path': p[8] if len(p) > 8 else ''})
             elif mode == 'TREE' and p[0] == 'S':
                 subs.setdefault(p[1], []).append(
                     {'tag': p[2], 'desc': p[3], 'size': int(p[4] or 0),
@@ -97,7 +108,7 @@ def parse_stdin():
             sys.exit(2)
     if mode not in ('TREE', 'MENU', 'CHECK'):
         sys.exit(2)
-    return mode, groups, subs, items
+    return mode, groups, subs, items, secs, sectools
 
 
 def fmt_m(m):
@@ -106,52 +117,82 @@ def fmt_m(m):
 
 # ---------- модель TREE ----------
 
-def tree_rows(groups, subs):
-    rows = []  # ('G', g, None) | ('S', g, sub)
+def tree_rows(groups, subs, secs, sectools):
+    """('G', g, None) | ('SEC', sec, None) | ('S', g, sub) | ('T', sec, tool)"""
+    rows = []
     for g in groups:
         rows.append(('G', g, None))
-        if g['expanded']:
+        if not g['expanded']:
+            continue
+        g_secs = secs.get(g['g'])
+        if g_secs:                     # группа с секциями (3-й уровень)
+            for sec in g_secs:
+                rows.append(('SEC', sec, None))
+                if sec['expanded']:
+                    for t in sectools.get(f"{sec['g']}|{sec['name']}", []):
+                        rows.append(('T', sec, t))
+        else:
             for s in subs.get(g['g'], []):
                 rows.append(('S', g, s))
     return rows
 
 
-def tree_total(groups, subs):
+def tree_total(groups, subs, secs, sectools):
     t = 0
     for g in groups:
-        ss = subs.get(g['g'])
-        if ss:
-            t += sum(s['size'] for s in ss if s['on'])
-        elif g['on']:
-            t += g['size']
+        g_secs = secs.get(g['g'])
+        if g_secs:                     # 3-й уровень: сумма по тулам секций
+            for sec in g_secs:
+                tools = sectools.get(f"{sec['g']}|{sec['name']}", [])
+                if tools:
+                    t += sum(x['size'] for x in tools if x['on'])
+                elif sec['on']:
+                    t += sec['size']
+        else:
+            ss = subs.get(g['g'])
+            if ss:
+                t += sum(s['size'] for s in ss if s['on'])
+            elif g['on']:
+                t += g['size']
     return t
 
 
-def toggle(g, s, subs):
-    if s is not None:
+def toggle(g, s, subs, sec=None, tools=None):
+    if s is not None:                  # тул
         s['on'] = not s['on']
         return
-    ss = subs.get(g['g'], [])
+    if sec is not None:                # секция — вся секция целиком
+        sec['on'] = not sec['on']
+        for x in (tools or []):
+            x['on'] = sec['on']
+        return
+    ss = subs.get(g['g'], [])          # группа
     g['on'] = not g['on']
     for x in ss:
         x['on'] = g['on']
+    for sec in secs.get(g['g'], []):
+        sec['on'] = g['on']
+        for x in sectools.get(f"{sec['g']}|{sec['name']}", []):
+            x['on'] = g['on']
 
 
 # ---------- отрисовка ----------
 
 class Ctx:
-    def __init__(self, scr, mode, groups, subs, items):
+    def __init__(self, scr, mode, groups, subs, items, secs=None, sectools=None):
         self.scr = scr
         self.mode = mode
         self.groups = groups
         self.subs = subs
         self.items = items
+        self.secs = secs or {}
+        self.sectools = sectools or {}
         self.cur = 0
         self.top = 0
 
     def rows(self):
         if self.mode == 'TREE':
-            return tree_rows(self.groups, self.subs)
+            return tree_rows(self.groups, self.subs, self.secs, self.sectools)
         return [(None, None, it) for it in self.items]
 
     def hint_lines(self, row, w, max_lines=6):
@@ -164,13 +205,20 @@ class Ctx:
                    'пробел — галочка · a/n — все/ничего · q — отмена']
         elif kind == 'G':
             src = [g['desc']]
-            has = bool(self.subs.get(g['g']))
+            has = bool(self.subs.get(g['g'])) or bool(self.secs.get(g['g']))
             if has and g['expanded']:
                 src.append('пробел — вся группа · ← — свернуть · Tab — свернуть все · q — отмена')
             elif has:
                 src.append('→ — раскрыть подпункты · Tab — раскрыть все · q — отмена')
             else:
                 src.append('Enter — ок · q — отмена')
+        elif kind == 'SEC':
+            has = bool(self.sectools.get(f"{g['g']}|{g['name']}"))
+            src = [f"{g['name']}: {g['desc']}"]
+            if has:
+                src.append('пробел — вся секция · → — раскрыть тулы · ← — к группе · q — отмена')
+            else:
+                src.append('пробел — галочка · q — отмена')
         else:
             # подпункт: полное описание, путь, автосводка содержимого, хоткеи
             src = [it['desc']]
@@ -206,7 +254,7 @@ class Ctx:
         rows = self.rows()
         if self.mode == 'TREE':
             scr.addnstr(2, 0,
-                        f"Выбрано сырого объёма: ~{fmt_m(tree_total(self.groups, self.subs))}",
+                        f"Выбрано сырого объёма: ~{fmt_m(tree_total(self.groups, self.subs, self.secs, self.sectools))}",
                         w - 1, curses.A_DIM)
         max_h = max(2, min(6, h - 9))
         hints = self.hint_lines(rows[self.cur], w, max_h)
@@ -221,6 +269,30 @@ class Ctx:
             kind, g, it = rows[i]
             cur_row = (i == self.cur)
             attr = curses.A_REVERSE if cur_row else 0
+            if self.mode == 'TREE' and kind == 'SEC':
+                if not cur_row:
+                    attr = curses.color_pair(1) | curses.A_BOLD
+                n = sum(1 for x in self.sectools.get(f"{g['g']}|{g['name']}", []) if x['on'])
+                cnt = len(self.sectools.get(f"{g['g']}|{g['name']}", []))
+                glyph = '▾' if g['expanded'] else '▸'
+                mark = f" [{n}/{cnt}]" if cnt else ''
+                text = f"    └ [ {'▶' if cur_row else ' '}] {glyph} {g['name']} — {g['desc']}{mark}"
+                size = g['size'] if cnt == 0 else sum(x['size'] for x in self.sectools[f"{g['g']}|{g['name']}"])
+                y = body_top + i - self.top
+                scr.addnstr(y, 0, text, w - 11, attr)
+                if size:
+                    scr.addnstr(y, max(0, w - 10), f"{fmt_m(size):>8}", 9, attr)
+                continue
+            if self.mode == 'TREE' and kind == 'T':
+                if not cur_row:
+                    attr = curses.A_DIM | attr
+                text = f"        └ [{'x' if it['on'] else ' '}] {it['tag']}  {it['desc']}"
+                size = it['size']
+                y = body_top + i - self.top
+                scr.addnstr(y, 0, text, w - 11, attr)
+                if size:
+                    scr.addnstr(y, max(0, w - 10), f"{fmt_m(size):>8}", 9, attr)
+                continue
             if self.mode == 'TREE' and kind == 'G':
                 if not cur_row:
                     attr = curses.color_pair(1)
@@ -278,16 +350,39 @@ def key_move(ctx, key):
 
 
 def tree_expand(ctx):
-    kind, g, _ = ctx.rows()[ctx.cur]
-    if kind == 'G' and g is not None and ctx.subs.get(g['g']) and not g['expanded']:
-        g['expanded'] = True
-        if ctx.cur + 1 < len(ctx.rows()):
-            ctx.cur += 1  # нырок в первый подпункт
+    kind, g, extra = ctx.rows()[ctx.cur]
+    if kind == 'G' and g is not None:
+        has = bool(ctx.subs.get(g['g'])) or bool(ctx.secs.get(g['g']))
+        if has and not g['expanded']:
+            g['expanded'] = True
+            if ctx.cur + 1 < len(ctx.rows()):
+                ctx.cur += 1  # нырок в первую секцию/подпункт
+    elif kind == 'SEC' and g is not None:
+        has = bool(ctx.sectools.get(f"{g['g']}|{g['name']}"))
+        if has and not g['expanded']:
+            g['expanded'] = True
+            if ctx.cur + 1 < len(ctx.rows()):
+                ctx.cur += 1  # нырок в первый тул
 
 
 def tree_collapse(ctx):
-    kind, g, _ = ctx.rows()[ctx.cur]
-    if kind == 'S':
+    kind, g, extra = ctx.rows()[ctx.cur]
+    if kind == 'T':                    # тул → к родительской секции
+        r = ctx.rows()
+        for i in range(ctx.cur - 1, -1, -1):
+            if r[i][0] == 'SEC' and r[i][1] is g:
+                ctx.cur = i
+                return
+    elif kind == 'SEC':
+        if g['expanded']:
+            g['expanded'] = False
+        else:                          # секция свёрнута — к родительской группе
+            r = ctx.rows()
+            for i in range(ctx.cur - 1, -1, -1):
+                if r[i][0] == 'G' and r[i][1]['g'] == g['g']:
+                    ctx.cur = i
+                    return
+    elif kind == 'S':
         r = ctx.rows()
         for i in range(ctx.cur - 1, -1, -1):
             if r[i][0] == 'G' and r[i][1] is g:
@@ -297,11 +392,17 @@ def tree_collapse(ctx):
         g['expanded'] = False
 
 
+_DBG = os.environ.get("OMT_KEY_DEBUG")
+
+
 def get_key(scr):
     """getch + ручной разбор CSI/SS3 стрелок: terminfo описывает application-режим
     (\\EOA), а некоторые терминалы/pty шлют обычный CSI (\\E[A) — keypad его не
     матчит и отдаёт голый ESC."""
     k = scr.getch()
+    if _DBG:
+        sys.stderr.write(f"[key={k!r}] ")
+        sys.stderr.flush()
     if k != 27:
         return k
     scr.nodelay(True)
@@ -326,7 +427,7 @@ def get_key(scr):
     return 27  # голый Esc = отмена
 
 
-def loop(scr, mode, groups, subs, items):
+def loop(scr, mode, groups, subs, items, secs=None, sectools=None):
     scr.keypad(True)              # стрелки как KEY_* (протокол терминала)
     for fn in (lambda: curses.curs_set(0), curses.use_default_colors):
         try:
@@ -337,7 +438,7 @@ def loop(scr, mode, groups, subs, items):
     if curses.has_colors():
         curses.start_color()
         curses.init_pair(1, curses.COLOR_CYAN, -1)
-    ctx = Ctx(scr, mode, groups, subs, items)
+    ctx = Ctx(scr, mode, groups, subs, items, secs, sectools)
     ctx.draw()
     while True:
         key = get_key(scr)
@@ -356,20 +457,32 @@ def loop(scr, mode, groups, subs, items):
                 tree_expand(ctx)
             elif key in (curses.KEY_LEFT, ord('<'), ord('h'), ord('H'), ord('b'), ord('B')):
                 tree_collapse(ctx)
-            elif key == 9:  # Tab: раскрыть/свернуть все группы разом
-                any_exp = any(gg['expanded'] for gg in groups)
+            elif key == 9:  # Tab: раскрыть/свернуть все группы и секции разом
+                any_exp = any(gg['expanded'] for gg in groups) or \
+                          any(sec['expanded'] for lst in secs.values() for sec in lst)
                 for gg in groups:
                     gg['expanded'] = not any_exp
+                for lst in secs.values():
+                    for sec in lst:
+                        sec['expanded'] = not any_exp
                 if ctx.cur >= len(ctx.rows()):
                     ctx.cur = len(ctx.rows()) - 1   # список ужался — клампим курсор
         if key in (32, ord(',')) and mode in ('TREE', 'CHECK'):
-            toggle(g, it, subs)
+            if mode == 'TREE' and kind == 'SEC':
+                toggle(g, None, subs, sec=g,
+                       tools=sectools.get(f"{g['g']}|{g['name']}", []))
+            else:
+                toggle(g, it, subs)
         elif key in (ord('a'), ord('A'), ord('ф'), ord('Ф')):
             if mode == 'TREE':
                 for gg in groups:
                     gg['on'] = True
                     for s in subs.get(gg['g'], []):
                         s['on'] = True
+                    for sec in secs.get(gg['g'], []):
+                        sec['on'] = True
+                        for x in sectools.get(f"{sec['g']}|{sec['name']}", []):
+                            x['on'] = True
             else:
                 for x in items:
                     x['on'] = True
@@ -379,6 +492,10 @@ def loop(scr, mode, groups, subs, items):
                     gg['on'] = False
                     for s in subs.get(gg['g'], []):
                         s['on'] = False
+                    for sec in secs.get(gg['g'], []):
+                        sec['on'] = False
+                        for x in sectools.get(f"{sec['g']}|{sec['name']}", []):
+                            x['on'] = False
             else:
                 for x in items:
                     x['on'] = False
@@ -387,7 +504,7 @@ def loop(scr, mode, groups, subs, items):
 
 
 def main():
-    mode, groups, subs, items = parse_stdin()
+    mode, groups, subs, items, secs, sectools = parse_stdin()
     # Данные уже прочитаны из stdin (труба). Курсор curses читает fd 0 и рисует
     # в fd 1 — переключаем оба на /dev/tty; результат пишем в исходный stdout,
     # который bash захватывает через $().
@@ -404,7 +521,7 @@ def main():
     os.dup2(tty, 1)
     picked = None
     try:
-        picked = curses.wrapper(lambda scr: loop(scr, mode, groups, subs, items))
+        picked = curses.wrapper(lambda scr: loop(scr, mode, groups, subs, items, secs, sectools))
     except KeyboardInterrupt:
         picked = None
     finally:
@@ -416,17 +533,27 @@ def main():
         os.close(saved_in)
     if picked is None:
         sys.exit(1)  # отмена — без вывода
+    # результат: в файл OMT_STATE (надёжно), иначе — stdout
+    state_path = os.environ.get("OMT_STATE", "")
+    fh = open(state_path, "w", encoding="utf-8") if state_path else None
+    w = (lambda t: fh.write(t + "\n")) if fh else (lambda t: print(t))
     if mode == 'MENU':
-        print(items[picked]['tag'])
+        w(items[picked]['tag'])
     elif mode == 'CHECK':
         for it in items:
             if it['on']:
-                print(it['tag'])
+                w(it['tag'])
     else:  # TREE — финальное состояние всех пунктов
         for g in groups:
-            print(f"G;{g['g']};{'ON' if g['on'] else 'OFF'}")
+            w(f"G;{g['g']};{'ON' if g['on'] else 'OFF'}")
+            for sec in secs.get(g['g'], []):
+                w(f"SEC;{g['g']};{sec['name']};{'ON' if sec['on'] else 'OFF'}")
+                for t in sectools.get(f"{sec['g']}|{sec['name']}", []):
+                    w(f"T;{g['g']};{sec['name']};{t['tag']};{'ON' if t['on'] else 'OFF'}")
             for s in subs.get(g['g'], []):
-                print(f"S;{g['g']};{s['tag']};{'ON' if s['on'] else 'OFF'}")
+                w(f"S;{g['g']};{s['tag']};{'ON' if s['on'] else 'OFF'}")
+    if fh:
+        fh.close()
     sys.exit(0)
 
 

@@ -48,6 +48,26 @@ group_appdata:
   .local/share/TelegramDesktop: false
   .local/share/Throne/config: true
 
+group_programs:
+  on: true                  # переустановка командами на Cachy; отметь нужное
+  cline: true
+  "@pen.dev/cli": true
+  "@trailhq/trail-code": true
+  neonctl: false
+  "@qwen-code/qwen-code": false
+  browser-use: false
+  graphifyy: false
+  ruff: false
+  frappe-bench: false
+  agy: false
+  copilot: false
+  "kiro-cli": false
+  herdr: false
+  claude: true
+  "cursor-agent": false
+  devin: false
+  qodercli: true
+
 group_browsers:
   on: true                  # Chrome + Firefox
 

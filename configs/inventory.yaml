@@ -74,6 +74,29 @@ group_appdata:              # данные десктоп-приложений, 
     - .local/share/TelegramDesktop   # сессия Telegram (tdata)
     - .local/share/Throne/config     # конфиги прокси Throne (core-дампы режутся)
 
+group_programs:             # пользовательские CLI-программы: переустановка командами
+  npm:                      # npm i -g <tool>
+    - cline
+    - "@pen.dev/cli"
+    - "@trailhq/trail-code"
+    - neonctl
+    - "@qwen-code/qwen-code"
+  uv:                       # uv tool install <tool>
+    - browser-use
+    - graphifyy
+    - ruff
+  pipx:                     # pipx install <tool>
+    - frappe-bench
+  bin:                      # самостоятельные CLI: команда/ссылка в mapping.toml
+    - agy
+    - copilot
+    - kiro-cli
+    - herdr
+    - claude
+    - cursor-agent
+    - devin
+    - qodercli
+
 group_browsers:             # профили целиком
   paths:
     - .config/google-chrome
@@ -126,6 +149,23 @@ desc:
   .npmrc: конфиг npm (может содержать токен!)
   .yarnrc: конфиг yarn
   .local/share/TelegramDesktop: Telegram: сессия (tdata) — без переавторизации
+  cline: coding-agent CLI (cline.bot)
+  "@pen.dev/cli": AI-агент pen.dev для .pen-файлов
+  "@trailhq/trail-code": общая память/карта кода для агентов
+  neonctl: CLI управляемого Postgres Neon
+  "@qwen-code/qwen-code": Qwen Code CLI
+  browser-use: браузерная автоматизация для агентов
+  graphifyy: graphify/graphify-mcp
+  ruff: python linter
+  frappe-bench: CLI фреймворка Frappe
+  agy: Google Antigravity CLI
+  copilot: GitHub Copilot CLI
+  kiro-cli: AWS Kiro CLI (ex-Amazon Q)
+  herdr: терминал-мультиплексор AI-агентов
+  claude: Claude Code
+  cursor-agent: Cursor CLI
+  devin: Devin CLI (Cognition)
+  qodercli: Qoder CLI
   .local/share/Throne/config: Throne (прокси): конфиги и профиль
   .zshrc: конфиг zsh
   .bashrc: конфиг bash

@@ -14,6 +14,7 @@
 | `dotfiles` | ~/.config, ~/.ssh, ~/.gnupg, shell rc, шрифты, история | → $HOME |
 | `data` | не-скрытые каталоги home: ~/Documents, Downloads, Desktop, Pictures, ~/bin | → $HOME |
 | `agents` | данные ИИ-агентов — инвентарь в `inventory.yaml`; по умолчанию отмечены только zcode + opencode (сессии, конфиги) | → $HOME |
+| `programs` | пользовательские CLI (npm/uv/pipx/bin): файлов в бандле нет — unpack выполняет команды из `mapping.toml` (`npm i -g cline`, `uv tool install …`) и печатает ссылки; `bin`-бинарники едут с dotfiles | переустановка |
 | `browsers` | профили Chrome/Firefox целиком (по умолчанию on) | → $HOME |
 | `flatpak` | профили flatpak-приложений (~/.var) | → $HOME |
 | `toolchain` | rustup/nvm/bun/npm/vscode (по умолчанию off — переустановить) | → $HOME |
@@ -106,7 +107,11 @@ group_extra:
 [packages."zsh"]
 name = "zsh"
 status = "native"
+ubuntu = "sudo apt install -y zsh"
 cachyos = "sudo pacman -S zsh"
+
+[programs.npm.cline]
+url = "https://cline.bot"
 
 [packages."chatgpt"]
 name = "chatgpt"

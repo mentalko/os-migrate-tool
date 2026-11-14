@@ -67,6 +67,7 @@ seg_conflicts() { # верхнеуровневые пути сегмента, у
 
 # ---------- 4. Компоненты ----------
 COMPONENTS=(
+  "programs;CLI-программы: переустановка по mapping.toml"
   "packages;манифесты + установка по mapping.toml"
   "appimages;копирование в ~/Applications"
   "dotfiles;конфиги, ssh, шрифты"
@@ -93,7 +94,8 @@ elif [[ $# -gt 0 ]]; then
         found=0
         for c in "${COMPONENTS[@]}"; do IFS=';' read -r tag _ <<<"$c"; [[ "$tag" == "$a" ]] && found=1; done
         if (( ! found )); then die "неизвестный компонент: $a (есть: ${COMPONENTS[*]%%;*} | all)"; fi
-        seg_in_bundle "$a" || die "в бандле нет сегмента $a/"
+        [[ "$a" == programs ]] || { seg_in_bundle "$a" || die "в бандле нет сегмента $a/"; }
+        [[ "$a" != programs || -s "$BUNDLE_LIST" ]] || true
         SEL+=("$a")
     done
 else
@@ -102,8 +104,8 @@ else
         seg_in_bundle "$tag" && CHECKS+=("$tag;$desc;OFF")
     done
     ((${#CHECKS[@]})) || die "в бандле нет ни одного сегмента"
-    SEL_STR=$(ui_checklist "Что восстанавливаем?" "${CHECKS[@]}")
-    mapfile -t SEL <<<"$SEL_STR"
+    OMT_STATE="$META/.sel-state" ui_checklist "Что восстанавливаем?" "${CHECKS[@]}"
+    mapfile -t SEL < "$META/.sel-state"
 fi
 [[ ${#SEL[@]} -gt 0 && -n "${SEL[0]:-}" ]] || die "ничего не выбрано"
 
@@ -231,6 +233,30 @@ for s in "${SEL[@]}"; do
                 ok "appimages: $n шт. -> ~/Applications"
             fi
             ;;
+        programs)
+            if (( DRY )); then
+                PROGLIST=$(tar --ignore-zeros -xzOf "$BUNDLE" meta/programs.txt 2>/dev/null || true)
+            else
+                PROGLIST=$(tar --ignore-zeros -xzOf "$BUNDLE" meta/programs.txt 2>/dev/null || true)
+            fi
+            [[ -n "$PROGLIST" ]] || { info "programs: список пуст"; break; }
+            info "Программы (переустановка):"
+            while IFS='|' read -r sec tool; do
+                [[ -n "$sec" ]] || continue
+                cmd="${PROG_CMD[$sec|$tool]:-}"
+                case "$sec" in
+                    bin)
+                        url="${PROG_URL[$sec|$tool]:-}"
+                        ok "  $tool — файл приедет с dotfiles (~/.local/bin); переустановка: ${url:-см. configs/mapping.toml}"
+                        ;;
+                    *)
+                        [[ -n "$cmd" ]] || continue
+                        echo "  \$ $cmd"
+                        (( DRY )) && dry "$cmd — выполнено" || { eval "$cmd" || warn "  $tool — установка не удалась"; }
+                        ;;
+                esac
+            done <<<"$PROGLIST"
+            ;;
     esac
 done
 
@@ -259,6 +285,9 @@ if [[ -n "$FLATPAK_APPS" ]]; then
 fi
 for pkg in "${!MAPPING_URL[@]}"; do
     [[ ${MAPPING_STATUS[$pkg]:-} == manual ]] && LINKS+="пакет: $pkg — ${MAPPING_URL[$pkg]}"$'\n'
+done
+for key in "${!PROG_URL[@]}"; do
+    LINKS+="программа: ${key#*|} — ${PROG_URL[$key]}"$'\n'
 done
 APPIMG_LIST=""
 if [[ -s "$META/appimages/list.txt" ]]; then
