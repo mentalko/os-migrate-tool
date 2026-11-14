@@ -1,381 +1,383 @@
-# os-migrate-tool :: mapping.toml — маппинг пакетов Ubuntu → установка на CachyOS.
+# os-migrate-tool :: mapping.toml — маппинг пакетов по ТИПУ системы.
+# Типы: arch (Arch/CachyOS), debian (Ubuntu/Debian). Первый шаг unpack —
+# автоопределение типа (os-release); не удалось — выбор из списка.
 #
-# [packages.<ubuntu-имя>]:
-#   name = ubuntu-имя (дублируется внутри для читаемости/поиска)
-#   status = "native"  — есть в репозиториях Arch; cachyos = команда установки
+# [packages.<имя-в-ubuntu>]:
+#   name = имя (дублируется внутри для читаемости/поиска)
+#   status = "native"  — есть в репозиториях; arch = команда для arch-типа
 #   status = "aur"     — через yay
 #   status = "manual"  — руками; url = страница/ссылка скачивания (unpack напечатает)
 #   status = "skip"    — не переносить
 # Нет записи → пакет не ставится, попадает в missing-mapping.txt.
-# unpack выполняет cachyos-команду ТОЛЬКО для native/aur; для manual/flatpak/
-# appimages он печатает названия и ссылки в конце (сам ниоткуда не качает).
+# unpack выполняет команду типа системы ТОЛЬКО для native/aur; для manual/
+# flatpak/appimages печатает названия и ссылки (сам ниоткуда не качает).
 #
 # [appimages."<имя файла>"]: url — страница скачивания AppImage (для переустановки).
 
 
 [packages."7zip"]
 name = "7zip"
-ubuntu = "sudo apt install -y 7zip"
+debian = "sudo apt install -y 7zip"
 status = "native"
-cachyos = "sudo pacman -S 7zip"
+arch = "sudo pacman -S 7zip"
 
 [packages."zsh"]
 name = "zsh"
-ubuntu = "sudo apt install -y zsh"
+debian = "sudo apt install -y zsh"
 status = "native"
-cachyos = "sudo pacman -S zsh"
+arch = "sudo pacman -S zsh"
 
 [packages."git"]
 name = "git"
-ubuntu = "sudo apt install -y git"
+debian = "sudo apt install -y git"
 status = "native"
-cachyos = "sudo pacman -S git"
+arch = "sudo pacman -S git"
 
 [packages."curl"]
 name = "curl"
-ubuntu = "sudo apt install -y curl"
+debian = "sudo apt install -y curl"
 status = "native"
-cachyos = "sudo pacman -S curl"
+arch = "sudo pacman -S curl"
 
 [packages."wget"]
 name = "wget"
-ubuntu = "sudo apt install -y wget"
+debian = "sudo apt install -y wget"
 status = "native"
-cachyos = "sudo pacman -S wget"
+arch = "sudo pacman -S wget"
 
 [packages."htop"]
 name = "htop"
-ubuntu = "sudo apt install -y htop"
+debian = "sudo apt install -y htop"
 status = "native"
-cachyos = "sudo pacman -S htop"
+arch = "sudo pacman -S htop"
 
 [packages."jq"]
 name = "jq"
-ubuntu = "sudo apt install -y jq"
+debian = "sudo apt install -y jq"
 status = "native"
-cachyos = "sudo pacman -S jq"
+arch = "sudo pacman -S jq"
 
 [packages."ncdu"]
 name = "ncdu"
-ubuntu = "sudo apt install -y ncdu"
+debian = "sudo apt install -y ncdu"
 status = "native"
-cachyos = "sudo pacman -S ncdu"
+arch = "sudo pacman -S ncdu"
 
 [packages."ripgrep"]
 name = "ripgrep"
-ubuntu = "sudo apt install -y ripgrep"
+debian = "sudo apt install -y ripgrep"
 status = "native"
-cachyos = "sudo pacman -S ripgrep"
+arch = "sudo pacman -S ripgrep"
 
 [packages."sqlite3"]
 name = "sqlite3"
-ubuntu = "sudo apt install -y sqlite3"
+debian = "sudo apt install -y sqlite3"
 status = "native"
-cachyos = "sudo pacman -S sqlite"
+arch = "sudo pacman -S sqlite"
 
 [packages."nmap"]
 name = "nmap"
-ubuntu = "sudo apt install -y nmap"
+debian = "sudo apt install -y nmap"
 status = "native"
-cachyos = "sudo pacman -S nmap"
+arch = "sudo pacman -S nmap"
 
 [packages."net-tools"]
 name = "net-tools"
-ubuntu = "sudo apt install -y net-tools"
+debian = "sudo apt install -y net-tools"
 status = "native"
-cachyos = "sudo pacman -S net-tools"
+arch = "sudo pacman -S net-tools"
 
 [packages."openvpn"]
 name = "openvpn"
-ubuntu = "sudo apt install -y openvpn"
+debian = "sudo apt install -y openvpn"
 status = "native"
-cachyos = "sudo pacman -S openvpn"
+arch = "sudo pacman -S openvpn"
 
 [packages."p7zip-full"]
 name = "p7zip-full"
-ubuntu = "sudo apt install -y p7zip-full"
+debian = "sudo apt install -y p7zip-full"
 status = "native"
-cachyos = "sudo pacman -S p7zip"
+arch = "sudo pacman -S p7zip"
 
 [packages."unzip"]
 name = "unzip"
-ubuntu = "sudo apt install -y unzip"
+debian = "sudo apt install -y unzip"
 status = "native"
-cachyos = "sudo pacman -S unzip"
+arch = "sudo pacman -S unzip"
 
 [packages."zip"]
 name = "zip"
-ubuntu = "sudo apt install -y zip"
+debian = "sudo apt install -y zip"
 status = "native"
-cachyos = "sudo pacman -S zip"
+arch = "sudo pacman -S zip"
 
 [packages."ffmpeg"]
 name = "ffmpeg"
-ubuntu = "sudo apt install -y ffmpeg"
+debian = "sudo apt install -y ffmpeg"
 status = "native"
-cachyos = "sudo pacman -S ffmpeg"
+arch = "sudo pacman -S ffmpeg"
 
 [packages."adb"]
 name = "adb"
-ubuntu = "sudo apt install -y adb"
+debian = "sudo apt install -y adb"
 status = "native"
-cachyos = "sudo pacman -S android-tools"
+arch = "sudo pacman -S android-tools"
 
 [packages."fastboot"]
 name = "fastboot"
-ubuntu = "sudo apt install -y fastboot"
+debian = "sudo apt install -y fastboot"
 status = "skip"
 note = "входит в android-tools"
 
 [packages."build-essential"]
 name = "build-essential"
-ubuntu = "sudo apt install -y build-essential"
+debian = "sudo apt install -y build-essential"
 status = "native"
-cachyos = "sudo pacman -S base-devel"
+arch = "sudo pacman -S base-devel"
 note = "gcc/make и пр."
 
 [packages."gdb"]
 name = "gdb"
-ubuntu = "sudo apt install -y gdb"
+debian = "sudo apt install -y gdb"
 status = "native"
-cachyos = "sudo pacman -S gdb"
+arch = "sudo pacman -S gdb"
 
 [packages."ghostscript"]
 name = "ghostscript"
-ubuntu = "sudo apt install -y ghostscript"
+debian = "sudo apt install -y ghostscript"
 status = "native"
-cachyos = "sudo pacman -S ghostscript"
+arch = "sudo pacman -S ghostscript"
 
 [packages."ninja-build"]
 name = "ninja-build"
-ubuntu = "sudo apt install -y ninja-build"
+debian = "sudo apt install -y ninja-build"
 status = "native"
-cachyos = "sudo pacman -S ninja"
+arch = "sudo pacman -S ninja"
 
 [packages."lshw"]
 name = "lshw"
-ubuntu = "sudo apt install -y lshw"
+debian = "sudo apt install -y lshw"
 status = "native"
-cachyos = "sudo pacman -S lshw"
+arch = "sudo pacman -S lshw"
 
 [packages."lvm2"]
 name = "lvm2"
-ubuntu = "sudo apt install -y lvm2"
+debian = "sudo apt install -y lvm2"
 status = "native"
-cachyos = "sudo pacman -S lvm2"
+arch = "sudo pacman -S lvm2"
 
 [packages."pigz"]
 name = "pigz"
-ubuntu = "sudo apt install -y pigz"
+debian = "sudo apt install -y pigz"
 status = "native"
-cachyos = "sudo pacman -S pigz"
+arch = "sudo pacman -S pigz"
 
 [packages."pv"]
 name = "pv"
-ubuntu = "sudo apt install -y pv"
+debian = "sudo apt install -y pv"
 status = "native"
-cachyos = "sudo pacman -S pv"
+arch = "sudo pacman -S pv"
 
 [packages."acl"]
 name = "acl"
-ubuntu = "sudo apt install -y acl"
+debian = "sudo apt install -y acl"
 status = "skip"
 note = "входит в базу Arch"
 
 [packages."python-is-python3"]
 name = "python-is-python3"
-ubuntu = "sudo apt install -y python-is-python3"
+debian = "sudo apt install -y python-is-python3"
 status = "native"
-cachyos = "sudo pacman -S python"
+arch = "sudo pacman -S python"
 
 [packages."pipx"]
 name = "pipx"
-ubuntu = "sudo apt install -y pipx"
+debian = "sudo apt install -y pipx"
 status = "native"
-cachyos = "sudo pacman -S python-pipx"
+arch = "sudo pacman -S python-pipx"
 
 [packages."docker-ce"]
 name = "docker-ce"
-ubuntu = "sudo apt install -y docker-ce"
+debian = "sudo apt install -y docker-ce"
 status = "native"
-cachyos = "sudo pacman -S docker docker-compose-plugin"
+arch = "sudo pacman -S docker docker-compose-plugin"
 note = "+ usermod -aG docker $USER"
 
 [packages."redis-server"]
 name = "redis-server"
-ubuntu = "sudo apt install -y redis-server"
+debian = "sudo apt install -y redis-server"
 status = "native"
-cachyos = "sudo pacman -S redis"
+arch = "sudo pacman -S redis"
 
 [packages."syncthing"]
 name = "syncthing"
-ubuntu = "sudo apt install -y syncthing"
+debian = "sudo apt install -y syncthing"
 status = "native"
-cachyos = "sudo pacman -S syncthing"
+arch = "sudo pacman -S syncthing"
 note = "+ systemctl --user enable syncthing"
 
 [packages."mariadb-server"]
 name = "mariadb-server"
-ubuntu = "sudo apt install -y mariadb-server"
+debian = "sudo apt install -y mariadb-server"
 status = "native"
-cachyos = "sudo pacman -S mariadb"
+arch = "sudo pacman -S mariadb"
 note = "mariadb-install-db --user=mysql перед первым стартом"
 
 [packages."aptitude"]
 name = "aptitude"
-ubuntu = "sudo apt install -y aptitude"
+debian = "sudo apt install -y aptitude"
 status = "skip"
 note = "apt-специфика"
 
 [packages."colord"]
 name = "colord"
-ubuntu = "sudo apt install -y colord"
+debian = "sudo apt install -y colord"
 status = "skip"
 note = "входит в рабочий стол"
 
 [packages."firefox"]
 name = "firefox"
-ubuntu = "sudo apt install -y firefox"
+debian = "sudo apt install -y firefox"
 status = "native"
-cachyos = "sudo pacman -S firefox"
+arch = "sudo pacman -S firefox"
 
 [packages."alacritty"]
 name = "alacritty"
-ubuntu = "sudo apt install -y alacritty"
+debian = "sudo apt install -y alacritty"
 status = "native"
-cachyos = "sudo pacman -S alacritty"
+arch = "sudo pacman -S alacritty"
 
 [packages."kitty"]
 name = "kitty"
-ubuntu = "sudo apt install -y kitty"
+debian = "sudo apt install -y kitty"
 status = "native"
-cachyos = "sudo pacman -S kitty"
+arch = "sudo pacman -S kitty"
 
 [packages."ghostty"]
 name = "ghostty"
-ubuntu = "sudo apt install -y ghostty"
+debian = "sudo apt install -y ghostty"
 status = "native"
-cachyos = "sudo pacman -S ghostty"
+arch = "sudo pacman -S ghostty"
 
 [packages."cool-retro-term"]
 name = "cool-retro-term"
-ubuntu = "sudo apt install -y cool-retro-term"
+debian = "sudo apt install -y cool-retro-term"
 status = "native"
-cachyos = "sudo pacman -S cool-retro-term"
+arch = "sudo pacman -S cool-retro-term"
 
 [packages."nautilus"]
 name = "nautilus"
-ubuntu = "sudo apt install -y nautilus"
+debian = "sudo apt install -y nautilus"
 status = "native"
-cachyos = "sudo pacman -S nautilus"
+arch = "sudo pacman -S nautilus"
 
 [packages."file-roller"]
 name = "file-roller"
-ubuntu = "sudo apt install -y file-roller"
+debian = "sudo apt install -y file-roller"
 status = "native"
-cachyos = "sudo pacman -S file-roller"
+arch = "sudo pacman -S file-roller"
 
 [packages."evince"]
 name = "evince"
-ubuntu = "sudo apt install -y evince"
+debian = "sudo apt install -y evince"
 status = "native"
-cachyos = "sudo pacman -S evince"
+arch = "sudo pacman -S evince"
 
 [packages."baobab"]
 name = "baobab"
-ubuntu = "sudo apt install -y baobab"
+debian = "sudo apt install -y baobab"
 status = "native"
-cachyos = "sudo pacman -S baobab"
+arch = "sudo pacman -S baobab"
 
 [packages."neofetch"]
 name = "neofetch"
-ubuntu = "sudo apt install -y neofetch"
+debian = "sudo apt install -y neofetch"
 status = "native"
-cachyos = "sudo pacman -S neofetch"
+arch = "sudo pacman -S neofetch"
 
 [packages."google-chrome-stable"]
 name = "google-chrome-stable"
-ubuntu = "sudo apt install -y google-chrome-stable"
+debian = "sudo apt install -y google-chrome-stable"
 status = "aur"
-cachyos = "yay -S google-chrome-stable"
+arch = "yay -S google-chrome-stable"
 
 [packages."warp-terminal"]
 name = "warp-terminal"
-ubuntu = "sudo apt install -y warp-terminal"
+debian = "sudo apt install -y warp-terminal"
 status = "aur"
-cachyos = "yay -S warp-terminal"
+arch = "yay -S warp-terminal"
 
 [packages."psensor"]
 name = "psensor"
-ubuntu = "sudo apt install -y psensor"
+debian = "sudo apt install -y psensor"
 status = "aur"
-cachyos = "yay -S psensor"
+arch = "yay -S psensor"
 
 [packages."localsend"]
 name = "localsend"
-ubuntu = "sudo apt install -y localsend"
+debian = "sudo apt install -y localsend"
 status = "aur"
-cachyos = "yay -S localsend-bin"
+arch = "yay -S localsend-bin"
 
 [packages."nekoray"]
 name = "nekoray"
-ubuntu = "sudo apt install -y nekoray"
+debian = "sudo apt install -y nekoray"
 status = "aur"
-cachyos = "yay -S nekoray"
+arch = "yay -S nekoray"
 
 [packages."cherrystudio"]
 name = "cherrystudio"
-ubuntu = "sudo apt install -y cherrystudio"
+debian = "sudo apt install -y cherrystudio"
 status = "aur"
-cachyos = "yay -S cherry-studio-bin"
+arch = "yay -S cherry-studio-bin"
 
 [packages."chatgpt"]
 name = "chatgpt"
-ubuntu = "sudo apt install -y chatgpt"
+debian = "sudo apt install -y chatgpt"
 status = "manual"
 note = "проверить AUR (chatgpt-desktop), иначе веб/AppImage"
 # url = "https://…"  ← добавить актуальную ссылку
 
 [packages."folo"]
 name = "folo"
-ubuntu = "sudo apt install -y folo"
+debian = "sudo apt install -y folo"
 status = "manual"
 note = "проверить AUR, иначе вручную"
 # url = "https://…"  ← добавить актуальную ссылку
 
 [packages."droidcam-client"]
 name = "droidcam-client"
-ubuntu = "sudo apt install -y droidcam-client"
+debian = "sudo apt install -y droidcam-client"
 status = "aur"
-cachyos = "yay -S droidcam"
+arch = "yay -S droidcam"
 
 [packages."qoder"]
 name = "qoder"
-ubuntu = "sudo apt install -y qoder"
+debian = "sudo apt install -y qoder"
 status = "skip"
 note = "AppImage/с сайта"
 
 [packages."paseo"]
 name = "paseo"
-ubuntu = "sudo apt install -y paseo"
+debian = "sudo apt install -y paseo"
 status = "skip"
 note = "ставится вручную"
 
 [packages."genoffice"]
 name = "genoffice"
-ubuntu = "sudo apt install -y genoffice"
+debian = "sudo apt install -y genoffice"
 status = "skip"
 note = "ставится вручную"
 
 [packages."open-whispr"]
 name = "open-whispr"
-ubuntu = "sudo apt install -y open-whispr"
+debian = "sudo apt install -y open-whispr"
 status = "skip"
 note = "ставится вручную"
 
 [packages."snapd"]
 name = "snapd"
-ubuntu = "sudo apt install -y snapd"
+debian = "sudo apt install -y snapd"
 status = "skip"
 note = "snap не переносится"
 
@@ -411,38 +413,38 @@ url = "https://docs.astral.sh/ruff/"
 url = "https://frappeframework.com/docs"
 
 [programs.bin.qodercli]
-ubuntu = "curl -fsSL https://qoder.com/install | bash"
-cachyos = "yay -S qoder-cli"
+debian = "curl -fsSL https://qoder.com/install | bash"
+arch = "yay -S qoder-cli"
 url = "https://qoder.com"
 
 [programs.bin.claude]
-cachyos = "curl -fsSL https://claude.ai/install.sh | bash"
-ubuntu = "curl -fsSL https://claude.ai/install.sh | bash"
+arch = "curl -fsSL https://claude.ai/install.sh | bash"
+debian = "curl -fsSL https://claude.ai/install.sh | bash"
 url = "https://claude.com/claude-code"
 
 [programs.bin.copilot]
-ubuntu = "curl -fsSL https://gh.io/copilot-install | bash"
-cachyos = "yay -S github-copilot-cli"
+debian = "curl -fsSL https://gh.io/copilot-install | bash"
+arch = "yay -S github-copilot-cli"
 url = "https://github.com/features/copilot/cli"
 
 [programs.bin.kiro-cli]
-ubuntu = "curl -fsSL https://cli.kiro.dev/install | bash"   # есть и .deb: desktop-release.q.us-east-1.amazonaws.com/latest/kiro-cli.deb
-cachyos = "yay -S kiro-cli"
+debian = "curl -fsSL https://cli.kiro.dev/install | bash"   # есть и .deb: desktop-release.q.us-east-1.amazonaws.com/latest/kiro-cli.deb
+arch = "yay -S kiro-cli"
 url = "https://kiro.dev"
 
 [programs.bin.agy]
-ubuntu = "curl -fsSL https://antigravity.google/cli/install.sh | bash"
+debian = "curl -fsSL https://antigravity.google/cli/install.sh | bash"
 url = "https://antigravity.google"
 
 [programs.bin.herdr]
-ubuntu = "curl -fsSL https://herdr.dev/install.sh | sh"
+debian = "curl -fsSL https://herdr.dev/install.sh | sh"
 url = "https://herdr.dev"
 
 [programs.bin."cursor-agent"]
-cachyos = "curl -fsSL https://cursor.com/install | bash"
-ubuntu = "curl -fsSL https://cursor.com/install | bash"
+arch = "curl -fsSL https://cursor.com/install | bash"
+debian = "curl -fsSL https://cursor.com/install | bash"
 url = "https://cursor.com/cli"
 
 [programs.bin.devin]
-ubuntu = "curl -fsSL https://cli.devin.ai/install.sh | bash"
+debian = "curl -fsSL https://cli.devin.ai/install.sh | bash"
 url = "https://devin.ai"

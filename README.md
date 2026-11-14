@@ -1,6 +1,9 @@
 # os-migrate-tool
 
-Интерактивный перенос системы **Ubuntu → CachyOS (Arch)** через внешний SSD.
+Интерактивный перенос системы **Ubuntu ↔ CachyOS (Arch)** через внешний SSD.
+Универсальный пакер: тип системы (arch/debian) определяется автоматически
+на первом шаге unpack (или выбирается из списка), команды установки берутся
+из mapping.toml по типу.
 
 Техническое устройство проекта — [docs/architecture.md](docs/architecture.md).
 Инструкция для ИИ-агента — [skills/os-migrate-tool/SKILL.md](skills/os-migrate-tool/SKILL.md).
@@ -107,8 +110,8 @@ group_extra:
 [packages."zsh"]
 name = "zsh"
 status = "native"
-ubuntu = "sudo apt install -y zsh"
-cachyos = "sudo pacman -S zsh"
+debian = "sudo apt install -y zsh"
+arch   = "sudo pacman -S zsh"
 
 [programs.npm.cline]
 url = "https://cline.bot"
@@ -129,5 +132,6 @@ status = "manual"
 - bash ≥ 4.4, tar, lsblk, df — базовая система
 - **python3** (мини-YAML-парсер conf.py + curses; есть на Ubuntu и Cachy) —
   конфиг и TUI на нём; bash-TUI остаётся fallback'ом терминала
+- Целевые системы: arch-подобные и debian-подобные (автоопределение)
 - Формат SSD: FAT/exFAT/NTFS — ок (запуск через `bash pack.sh`; права/владельцы
   хранятся внутри tar.gz; симлинк `latest` заменяется на `latest.txt`)

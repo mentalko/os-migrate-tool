@@ -157,23 +157,27 @@ lib.sh/pack.sh, голый bash, alt-screen `\e[?1049h`). ERR-trap возвра�
 
 ## unpack.sh — поток
 
-1. Выбор бандла (`archives/*.tar.gz`), список содержимого — 1 проход в tmp-файл.
-2. Компоненты: имена сегментов (`dotfiles`, `data`, …), аргументы валидируются
+1. **Тип системы** — первый шаг: автоопределение по os-release (ID/ID_LIKE →
+   arch/debian); не удалось — ui_menu из списка. Переопределение: `OMT_SYS_TYPE`.
+   Тип выбирает команды из mapping.toml (`PKG_CMD[тип|pkg]`, `PROG_CMD[тип|сек|тул]`).
+2. Выбор бандла (`archives/*.tar.gz`), список содержимого — 1 проход в tmp-файл.
+3. Компоненты: имена сегментов (`dotfiles`, `data`, …), аргументы валидируются
    (ведущие `--` срезаются), `all` = сегменты, присутствующие в бандле.
-3. Конфликты — ДО распаковки, по кэшированному списку: верхнеуровневые пути
+4. Конфликты — ДО распаковки, по кэшированному списку: верхнеуровневые пути
    сегмента, уже существующие в `$HOME`; один вопрос на сегмент: skip / backup
    (`*.bak-premigrate`) / overwrite.
-4. Распаковка — 2 прохода максимум: packages+appimages → `<run>.meta/`,
+5. Распаковка — 2 прохода максимум: packages+appimages → `<run>.meta/`,
    домашние сегменты → `$HOME` одним `tar --ignore-zeros -xzf --strip-components=1`.
-5. `packages`: сверка `apt-list.txt` с `mapping.toml` — **точное** сравнение
+6. `packages`: сверка `apt-list.txt` с `mapping.toml` — **точное** сравнение
    первого поля через awk (grep -E ломался на `+` в именах: g++, libstdc++6).
    `status=native|aur` → `eval install_cmd` из третьей колонки; пакеты вне
    маппинга → `missing-mapping.txt`, молча ничего не ставится. Flatpak: remote-add
    --if-not-exists flathub + установка списка. VS Code extensions, `dconf load`,
    `crontab` — по наличию файлов.
-6. Браузеры: предупреждение про старый keyring до распаковки; отказ → сегмент
+7. Браузеры: предупреждение про старый keyring до распаковки; отказ → сегмент
    вынимается из очереди извлечения.
-7. Отчёт: выбранные сегменты, paths.tsv (source → dest), missing-mapping.
+8. Отчёт: выбранные сегменты, paths.tsv (source → dest), missing-mapping,
+   блок «скачать/установить вручную» (flathub/manual/programs urls).
 
 ## Формат mapping.toml
 

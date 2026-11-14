@@ -20,12 +20,29 @@ set -- "${CLEAN_ARGS[@]}"
 
 require_not_root
 
-# ---------- 1. ОС ----------
-. /etc/os-release
-if [[ "${ID:-}" != cachyos && "${ID_LIKE:-}" != *arch* ]]; then
-    warn "Текущая ОС: ${PRETTY_NAME:-?} — unpack.sh рассчитан на CachyOS/Arch."
-    read -rp "Продолжить всё равно? [y/N] " a || a=""; [[ ${a:-n} =~ ^[Yy]$ ]] || exit 1
+# ---------- 1. Тип системы (первый шаг) ----------
+# Определяем тип по /etc/os-release; не удалось — выбор из списка.
+# Тип выбирает, какие команды установки брать из configs/mapping.toml (arch/debian).
+detect_type() {
+    local id="" like=""
+    [[ -r /etc/os-release ]] && { . /etc/os-release; id="${ID:-}"; like="${ID_LIKE:-}"; }
+    case "$id" in
+        arch|cachyos|manjaro|endeavouros|garuda|artix) echo arch;;
+        debian|ubuntu|linuxmint|pop|elementary|kali|zorin) echo debian;;
+        *)
+            case "$like" in
+                *arch*) echo arch;;
+                *debian*) echo debian;;
+            esac;;
+    esac
+}
+SYS_TYPE="${OMT_SYS_TYPE:-$(detect_type || true)}"
+if [[ -z "$SYS_TYPE" ]]; then
+    SYS_TYPE=$(ui_menu "Тип системы определить не удалось — выбери вручную:" \
+        "arch;Arch-подобная (pacman/yay)" "debian;Debian-подобная (apt)")
+    [[ -n "$SYS_TYPE" ]] || die "тип системы не выбран"
 fi
+ok "Тип системы: $SYS_TYPE${OMT_SYS_TYPE:+ (задан OMT_SYS_TYPE)}"
 
 # ---------- 2. Выбор бандла ----------
 [[ -d "$TOOL_DIR/archives" ]] || die "рядом со скриптом нет archives/ — запусти с SSD"
@@ -184,7 +201,7 @@ for s in "${SEL[@]}"; do
                 dry "packages: сверка apt-list с configs/mapping.toml + flatpak/vscode/dconf/cron"
                 continue
             fi
-            info "Сверка apt-list с configs/mapping.toml..."
+            info "Сверка apt-list с configs/mapping.toml (тип: $SYS_TYPE)..."
             installed=0
             # точное совпадение первого поля через assoc (grep -E ломался на '+' в именах)
             while IFS= read -r pkg; do
@@ -192,7 +209,7 @@ for s in "${SEL[@]}"; do
                 status="${MAPPING_STATUS[$pkg]:-}"
                 case "$status" in
                     native|aur)
-                        cmd="${MAPPING_CMD[$pkg]:-}"
+                        cmd="${PKG_CMD[$SYS_TYPE|$pkg]:-}"
                         [[ -n "$cmd" ]] && { echo "  \$ $cmd"; (( DRY )) && { dry "$cmd — выполнено"; installed=$((installed+1)); } || { eval "$cmd" && installed=$((installed+1)) || warn "  $pkg — установка не удалась"; }; }
                         ;;
                     skip) ok "  $pkg — skip (не переносится)";;
@@ -239,17 +256,13 @@ for s in "${SEL[@]}"; do
             # система: arch-подобная или debian-подобная — варианты установки разные
             SYS="debian"
             [[ "${ID:-}" == cachyos || "${ID_LIKE:-}" == *arch* ]] && SYS="arch"
-            info "Программы — пошагово (система: $SYS)..."
+            info "Программы — пошагово (тип: $SYS_TYPE)..."
             # fd 3: stdin остаётся tty для интерактивного меню
             while IFS='|' read -r sec tool <&3; do
                 [[ -n "$sec" ]] || continue
                 key="$sec|$tool"
                 d="${DESC[$tool]:-$tool}"   # desc из configs/inventory.yaml
-                if [[ $SYS == arch ]]; then
-                    install_cmd="${PROG_CMD[$key]:-}"
-                else
-                    install_cmd="${PROG_CMD_UBUNTU[$key]:-}"
-                fi
+                install_cmd="${PROG_CMD[$SYS_TYPE|$key]:-}"
                 url="${PROG_URL[$key]:-}"
                 opts=()
                 [[ -n "$install_cmd" ]] && opts+=("$install_cmd;выполнить команду установки")

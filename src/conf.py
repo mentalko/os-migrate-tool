@@ -216,38 +216,36 @@ def main() -> int:
     arr("EXCL_PATTERNS_ARR", excl.get("tar", []) or [])
     out.append(f"APPIMG_SKIP_ZERO={1 if excl.get('appimages', {}).get('skip_zero_size', False) else 0}")
 
-    # маппинг пакетов (configs/mapping.toml)
-    m_status, m_cmd, m_url = {}, {}, {}
+    # маппинг пакетов (configs/mapping.toml) — команды по ТИПУ системы
+    KNOWN_TYPES = ("arch", "debian")
+    m_status, pkg_cmd, m_url = {}, {}, {}
     for pkg, spec in (mapping.get("packages") or {}).items():
-        st = str(spec.get("status", "skip"))
-        m_status[pkg] = st
-        cmd = spec.get("cachyos", "")
-        if st in ("native", "aur") and cmd:
-            m_cmd[pkg] = cmd
-        url = spec.get("url", "")
-        if url:
-            m_url[pkg] = url
+        m_status[pkg] = str(spec.get("status", "skip"))
+        for t in KNOWN_TYPES:
+            if spec.get(t):
+                pkg_cmd[f"{t}|{pkg}"] = str(spec[t])
+        if spec.get("url"):
+            m_url[pkg] = str(spec["url"])
     assoc("MAPPING_STATUS", m_status)
-    assoc("MAPPING_CMD", m_cmd)
+    assoc("PKG_CMD", pkg_cmd)
     assoc("MAPPING_URL", m_url)
     assoc("APPIMG_URL", {k: str(v.get("url", "")) for k, v in (mapping.get("appimages") or {}).items()})
 
-    # программы: [programs.<секция>.<тул>] → команда установки (дефолт по секции)
+    # программы: [programs.<секция>.<тул>] → команды по типу системы
+    # (дефолт по секции одинаковый для всех типов: npm i -g X и т.п.)
     DEFAULT_CMD = {"npm": "npm i -g {}",
                    "uv": "uv tool install {}",
                    "pipx": "pipx install {}",
                    "bin": ""}
-    prog_cmd, prog_cmd_ubuntu, prog_url = {}, {}, {}
+    prog_cmd, prog_url = {}, {}
     for sec, tools in (mapping.get("programs") or {}).items():
         for tool, spec in (tools or {}).items():
-            key = f"{sec}|{tool}"
-            def_cmd = DEFAULT_CMD.get(sec, "").format(tool)
-            prog_cmd[key] = str(spec.get("cachyos", "")) or def_cmd
-            prog_cmd_ubuntu[key] = str(spec.get("ubuntu", "")) or def_cmd
+            for t in KNOWN_TYPES:
+                cmd = str(spec.get(t, "")) or DEFAULT_CMD.get(sec, "").format(tool)
+                prog_cmd[f"{t}|{sec}|{tool}"] = cmd
             if spec.get("url"):
-                prog_url[key] = str(spec["url"])
+                prog_url[f"{sec}|{tool}"] = str(spec["url"])
     assoc("PROG_CMD", prog_cmd)
-    assoc("PROG_CMD_UBUNTU", prog_cmd_ubuntu)
     assoc("PROG_URL", prog_url)
 
     print("\n".join(out))

@@ -20,10 +20,13 @@ python ≥ 3.11). Комментарии: целые строки + инлайн
 `/` (tar матчит имя каталога без слэша). `appimages.skip_zero_size: true` — битые/
 пустые AppImage не переносятся (условие, не по имени).
 
-## mapping.toml — пакеты Ubuntu → установка на CachyOS
-`[packages.<имя>]`: `name` = дубль имени; `status` = native / aur / manual / skip;
-`cachyos` — команда установки (выполняется unpack'ом только для native/aur);
-`url` — страница скачивания для manual. Нет записи → пакет не ставится, попадает
-в missing-mapping.txt. `[appimages."<файл>"]` → `url` — ссылка на скачивание.
-unpack в конце печатает названия и ссылки (flatpak → flathub, manual, appimages) —
-сам он ниоткуда не качает и не устанавливает.
+## mapping.toml — пакеты: команды по типу системы
+Ключи — ТИПЫ систем: `arch` (Arch/CachyOS), `debian` (Ubuntu/Debian). unpack
+сам определяет тип (os-release), не удалось — спросит.
+`[packages.<имя>]`: `name`; `status` = native / aur / manual / skip;
+`arch` и `debian` — команды установки для каждого типа (выполняются для
+native/aur на соответствующей системе); `url` — страница скачивания для manual.
+Нет записи → пакет не ставится, попадает в missing-mapping.txt.
+`[programs.<секция>.<тул>]` — то же для пользовательских CLI (npm/uv/pipx/bin;
+дефолт по секции можно переопределить per-tool). `[appimages."<файл>"]` → `url`.
+unpack в конце печатает названия и ссылки — сам ниоткуда не качает.

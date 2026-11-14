@@ -13,7 +13,10 @@ description: >
 
 # os-migrate-tool
 
-Перенос Ubuntu → CachyOS через внешний SSD. Скрипты живут на SSD
+Перенос Ubuntu ↔ CachyOS через внешний SSD (универсальный пакер linux,
+сейчас arch ↔ debian). Первый шаг unpack — определение ТИПА системы по
+os-release (arch/debian); не удалось — выбор из списка (переопределяется
+`OMT_SYS_TYPE`). Тип выбирает команды установки из `configs/mapping.toml`. Скрипты живут на SSD
 (`os-migrate-tool/`), при каждом прогоне самообновляются там же.
 Общий код (хелперы + проверка окружения) — в `src/lib.sh`. TUI — `src/tui.py`
 на curses (stdlib python, без установки): alt-screen, скролл длинных
