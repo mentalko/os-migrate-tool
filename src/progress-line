@@ -25,5 +25,5 @@ for ((i = 0; i < empty; i++)); do bar+="░"; done
 
 done_b=$(( bytes / 1048576 ))
 total_m=$(( total / 1048576 ))
-printf '\r  %s [%s] %3d%% (%sM/%sM)' "$seg" "$bar" "$pct" "$done_b" "$total_m" >&2
+printf '  %s [%s] %3d%% (%sM/%sM)\n' "$seg" "$bar" "$pct" "$done_b" "$total_m" >&2
 exit 0
