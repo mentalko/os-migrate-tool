@@ -45,6 +45,8 @@ tar:
   # --- кэши/данные конкретных программ ---
   - .zcode/v2/visualizations  # визуализации ZCode — генерируются на лету
   - ".local/share/Throne/config/core*"   # core-дамп Throne (192M)
+  # --- дубли данных (решение владельца) ---
+  - .config/manicode/projects  # рабочие копии проектов — дублируют ~/Documents
   # --- старьё ---
   - ".local/bin/agy.*.old"    # старые копии бинарника
   # --- тяжёлое и перекачиваемое ---
