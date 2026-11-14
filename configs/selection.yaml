@@ -63,10 +63,10 @@ group_programs:
   copilot: false
   "kiro-cli": false
   herdr: false
-  claude: true
-  "cursor-agent": false
-  devin: false
-  qodercli: true
+  claude: false              # бинарники едут файлами с dotfiles ~/.local/bin
+  "cursor-agent": false      # (см. exclude_dirs/selection) — переустановка
+  devin: false               # включается галочкой при необходимости
+  qodercli: false
 
 group_browsers:
   on: true                  # Chrome + Firefox
