@@ -13,31 +13,31 @@
 ```
 Ubuntu                                 CachyOS
 pack.sh ──► SSD/os-migrate-tool/ ──► unpack.sh
-             archives/<дата>_<os>/
+             archives/<дата>_<os>.tar.gz (+ .meta/)
 ```
 
 ## Компоненты
 
 | Файл | Роль |
 |---|---|
-| `pack.sh` | Упаковка: выбор SSD → чеклист (группы+подпункты) → подтверждение → архивы |
-| `unpack.sh` | Восстановление: выбор прогона и компонентов, установка пакетов, распаковка |
-| `lib.sh` | Общий код: сообщения, dry-run, root-чек, ERR-trap, выбор движка TUI, bash-fallback TUI |
-| `tui.py` | TUI на curses (stdlib python): режимы TREE / MENU / CHECK |
-| `src/lib.sh` | Общий код: сообщения, dry-run, root-чек, ERR-trap, выбор TUI-движка |
-| `src/tui.py` | TUI на curses: TREE / MENU / CHECK |
+| `pack.sh` | Упаковка: выбор SSD → чеклист (группы+подпункты) → подтверждение → единый бандл |
+| `pack-kitty.sh` | Лаунчер: pack.sh в окне kitty с логом сессии для агента |
+| `unpack.sh` | Восстановление: тип системы → выбор бандла → TUI-дерево → распаковка |
+| `src/lib.sh` | Общий код: сообщения, dry-run, root-чек, ERR-trap, выбор TUI-движка, fallback-меню/чеклист |
+| `src/tui.py` | TUI на curses (stdlib python): режимы TREE / MENU / CHECK |
 | `src/conf.py` | Мост конфига в bash: `eval "$(conf.py inv sel)"`; мини-YAML на stdlib |
-| `src/mapping.toml` | Маппинг apt-пакетов → pacman/yay |
+| `src/progress-line` | Прогресс-бар `▓▓░░` для `--checkpoint` tar: байты → строка статуса |
 | `configs/inventory.yaml` | Полный инвентарь: группы `group_*` с секциями + `desc:` |
 | `configs/selection.yaml` | Галочки по умолчанию: `group_<имя>.on` + вложенные пути |
 | `configs/exclude_dirs.yaml` | Исключения: `tar:` шаблоны (все сегменты) + `appimages.skip_zero_size` |
-| `pack-kitty.sh` | Лаунчер: pack.sh в окне kitty с логом сессии для агента |
+| `configs/mapping.toml` | Пакеты и программы: команды по типу системы (arch/debian), url для ручной установки |
+| `configs/README.md` | Краткое описание каждого конфига |
 
 ## Конфигурация: inventory.yaml + selection.yaml
 
 Три YAML-файла в `configs/`; парсит `src/conf.py` и печатает bash-код для `eval` в pack.sh
 (exclude_dirs → `EXCL_PATTERNS_ARR` + `APPIMG_SKIP_ZERO`; mapping.toml →
-`MAPPING_*`, `PROG_CMD`/`PROG_CMD_UBUNTU`/`PROG_URL`):
+`MAPPING_STATUS`/`PKG_CMD`/`MAPPING_URL`/`APPIMG_URL`/`PROG_CMD`/`PROG_URL`):
 массивы путей (`AGENT_DIRS_ARR`, `DOT_ARR`, `AGENT_SESSIONS_ARR`, …), assoc
 `DESC` (описания), `TUI_GRP_STATE` (ON/OFF по группам), `TUI_SEL`
 (`группа|путь` → ON/OFF), `COMPRESS_ESTIMATE`. Значения квотируются
@@ -139,27 +139,43 @@ lib.sh/pack.sh, голый bash, alt-screen `\e[?1049h`). ERR-trap возвра�
 
 ## pack.sh — поток
 
-1. `omt_dryrun` (арг `--dry-run`/`-n`) → `require_not_root` → проверка debian-подобной ОС.
+1. `omt_dryrun` (`--dry-run`/`-n`), `--no-compress`/`--compress` → `require_not_root` → проверка debian-подобной ОС.
 2. Выбор SSD: `lsblk` → не-`/` маунтпойнты → `ui_menu` (устройство, метка, ФС,
    размер, свободно); write-test `touch`.
-3. `eval "$(src/conf.py configs/inventory.yaml configs/selection.yaml)"` → массивы, DESC, дефолты галочек; поиск AppImage.
+3. `eval "$(src/conf.py configs/inventory.yaml configs/selection.yaml configs/exclude_dirs.yaml)"`
+   → массивы путей, `DESC`, дефолты галочек, `EXCL_PATTERNS_ARR`, `APPIMG_SKIP_ZERO`;
+   поиск AppImage (битые/пустые отсекаются `skip_zero_size`).
 4. Построение групп/подпунктов (`SUBS` = `desc;size;hint;path`, `SUB_ORDER`
-   хранит порядок), дефолты из `CHECKBOX_*`, размеры `du -sm --apparent-size`.
-5. `ui_tree` (tui.py или fallback) → раскладка состояний обратно в
-   `GRP_STATE`/`SUB_STATE` → разворот в `SEL` + `GRP_SIZE_PLAN` + `GRP_SEL`
-   (пути через `\n` — безопасно к пробелам).
+   хранит порядок), описания из `DESC`, размеры `du -sm --apparent-size`;
+   дефолты — из `TUI_GRP_STATE`/`TUI_SEL` (selection.yaml), программы —
+   3-й уровень (`PROG_SECS_ARR`/`PROG_<SEC>_ARR`).
+5. `ui_tree` (tui.py TREE или bash-fallback) → финальные состояния раскладываются
+   обратно в `GRP_STATE`/`SUB_STATE`/`PROG_*_STATE` → разворот в `SEL` +
+   `GRP_SIZE_PLAN` + `GRP_SEL` (пути через `\n` — безопасно к пробелам).
+   Галочка группы — массовый переключатель: решают состояния подпунктов,
+   ON-подпункт едет даже внутри OFF-группы.
 6. Подтверждение: построчный список с размерами, сырой объём, оценка tar.gz,
-   свободное место (die при нехватке), таблица планируемых архивов, `y/n`.
-7. Прогон: `archives/<%F>_<os_id>/` (коллизия → суффикс времени).
-   `.exclude-dedup` генерируется один раз: агентские/браузерные/тулчейн/flatpak
-   пути + сам tool — вырезаются из dotfiles/data (они едут в своих архивах).
-   `targz()` принимает пути через `\n`, фильтрует несуществующие, `--files-from`
-   из `<(printf)`, exclude-файл по группе.
-8. Манифесты packages: dpkg/flatpak/code/dconf/crontab/systemd-user.
-9. AppImage: `list.txt` + `cp` (read по строкам — имена с пробелами ок).
-10. `paths.tsv`: `group/tag/size/source/archive/dest` — происхождение каждого пути.
-11. Самосинхронизация `TOOL_FILES` на SSD; `manifest.txt` (find + sha256 через
-    `find -print0 | sort -z | xargs -0 -r` — имена с пробелами ок); симлинк
+   свободное место (die при нехватке), таблица сегментов бандла; если формат
+   не задан флагом — вопрос «с сжатием или без» (gz/tar, оценки обоих вариантов);
+   `y/n`.
+7. Прогон — **один бандл** `archives/<дата>_<os>.tar.gz` (или `.tar`; коллизия
+   → суффикс времени) + рядом `<...>.meta/` (служебные файлы прогона).
+   Исключения: `exclude-patterns` (из exclude_dirs.yaml, на все сегменты) и
+   `exclude-dotfiles-data` (паттерны + dedup агентских/браузерных/тулчейн/flatpak
+   путей — только dotfiles/data, они едут в своих сегментах).
+   `seg_tar()` дописывает сегмент в бандл: gzip-члены (мульти-членный бандл),
+   `--transform 's,^,<сег>/,'`, `--checkpoint=200` → `src/progress-line`
+   (бар `▓▓░░`); tar rc 1/2 = часть файлов пропущена — warn, прогон продолжается.
+8. Манифесты packages: dpkg/flatpak/code/dconf/crontab/systemd-user +
+   `npm ls -g` + `pip3 list --user` — пишутся в `.meta/packages/`, оттуда
+   сегментом в бандл.
+9. AppImage: `list.txt` + `cp` в `.meta/appimages/` (имена с пробелами ок) →
+   сегментом в бандл; staging удаляется.
+10. `paths.tsv` (source → bundle:segment → dest) + `programs.txt` в `.meta/`;
+    резерв `meta/` (paths.tsv, списки исключений) дописывается внутрь бандла —
+    потерянный `.meta/` восстанавливается unpack'ом.
+11. Самосинхронизация `TOOL_FILES` (src/, configs/, skills/, скрипты, README) на SSD.
+12. `manifest.txt` = sha256 бандла + дерево (`tar --ignore-zeros -t`); симлинк
     `latest` → при ФС без симлинков (exFAT) файл `latest.txt`.
 
 ## unpack.sh — поток
@@ -204,9 +220,15 @@ lib.sh/pack.sh, голый bash, alt-screen `\e[?1049h`). ERR-trap возвра�
 
 ## Формат mapping.toml
 
-`ubuntu_pkg<TAB>status<TAB>install_cmd<TAB>notes`; статус ∈ {native, aur, skip,
-manual}; строки `#` и пустые пропускаются. Нет строки → пакет не ставится,
-попадает в missing-отчёт.
+TOML (stdlib `tomllib`, python ≥ 3.11). `[packages.<имя-в-ubuntu>]`: `name`
+(дублируется для читаемости), `status` ∈ {native, aur, manual, skip}, команды
+по ТИПАМ систем `arch =` / `debian =` — выполняются только для native/aur
+на соответствующей системе; `url` — страница для manual (unpack печатает в
+отчёте). `[programs.<секция>.<тул]` — пользовательские CLI (npm/uv/pipx/bin):
+команда по умолчанию от менеджера (`npm i -g X` / `uv tool install X` /
+`pipx install X`), переопределяется `arch`/`debian`; `url` печатается в
+блоке «установить вручную». `[appimages."<файл>"]` — url страницы скачивания.
+Нет записи → пакет не ставится, попадает в missing-отчёт.
 
 ## Известные ограничения и грабли
 
@@ -214,13 +236,15 @@ manual}; строки `#` и пустые пропускаются. Нет ст�
   `(( --cur ))` на переходе к строке 0 убивал скрипт. Все перемещения курсора —
   через `if`/присваивание; у compose-функций `return 0`.
 - **Пайпы в `$( )` под set -e**: последний `[[ ]] && cmd` цикла возвращает 1 →
-  присваивание падает. Закрывать `|| true` (см. extract_tar).
+  присваивание падает. Закрывать `|| true`.
 - **FAT/exFAT/NTFS**: нет бита исполнения → запуск `bash pack.sh`; симлинки не
   поддерживаются → `latest.txt`; права/владельцы сохраняются только внутри tar.gz.
-- **`.cache`** исключён `exclude.txt` из всех архивов — включать его в
-  `TOOLCHAIN_DIRS` бессмысленно (пункт-пустышка).
-- **Креды**: `agents.tar.gz` содержит `~/.zcode/cli/credentials.json`,
-  `.codex/auth.json` и т.п. — SSD с бэкапом держать при себе/шифровать.
+- **`.cache`** вырезается шаблонами `configs/exclude_dirs.yaml` (`.cache` + `cache`
+  на любой глубине) из всех сегментов — включать его в `group_toolchain`
+  бессмысленно (пункт-пустышка).
+- **Креды**: сегмент `agents` содержит `~/.zcode/cli/credentials.json` и данные
+  opencode (db/auth в `~/.local/share/opencode`) — SSD с бэкапом держать при
+  себе/шифровать (по умолчанию бэкапятся только zcode + opencode, см. selection).
 - Ключи браузеров привязаны к старому keyring — без его пароля пароли не
   откроются.
 

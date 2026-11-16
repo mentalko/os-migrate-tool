@@ -21,7 +21,7 @@
 | `browsers` | профили Chrome/Firefox целиком (по умолчанию on) | → $HOME |
 | `flatpak` | профили flatpak-приложений (~/.var) | → $HOME |
 | `toolchain` | rustup/nvm/bun/npm/vscode (по умолчанию off — переустановить) | → $HOME |
-| `extra` | paperless-ngx, Sync, v2rayN (группа off, v2rayN включен точечно) | → $HOME |
+| `extra` | paperless-ngx, Sync, v2rayN (группа off; v2rayN, paperless-ngx, Sync включены точечно) | → $HOME |
 
 Полный список путей и их описания — `configs/inventory.yaml`; что отмечено — `configs/selection.yaml`.
 
@@ -52,7 +52,7 @@ bash unpack.sh --dry-run agents                        # отчёт без из�
 ```
 os-migrate-tool/
 ├── pack.sh  pack-kitty.sh  unpack.sh   # скрипты
-├── src/                                # lib.sh, tui.py, conf.py, mapping.toml, exclude.txt
+├── src/                                # lib.sh, tui.py, conf.py, progress-line
 ├── configs/                            # inventory.yaml, selection.yaml, exclude_dirs.yaml
 ├── README.md                           # самообновляется
 ├── skills/os-migrate-tool/SKILL.md     # скилл для ИИ-агента (самообновляется)

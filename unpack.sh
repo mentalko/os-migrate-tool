@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 # os-migrate-tool :: unpack.sh
 # Восстановление на CachyOS (Arch) из бандла прогона на SSD.
-# Запускается прямо с SSD:  ./unpack.sh [--packages|--appimages|--dotfiles|--data|--agents|--browsers|all] [--dry-run]
-# Флаги можно комбинировать; all = все компоненты прогона. Без аргументов —
+# Запускается прямо с SSD:  ./unpack.sh [сегмент…|all] [--dry-run]
+# Сегменты: programs packages appimages dotfiles data agents browsers flatpak
+# toolchain tmp extra; --префикс тоже принимается (--dotfiles == dotfiles).
+# Флаги можно комбинировать; all = все сегменты бандла. Без аргументов —
 # TUI-дерево: сегмент → верхнеуровневые пути → подпути 2-го уровня; у каждого
 # пункта маркер ● (уже есть в $HOME — будет перезаписан) / ○ (будет создан).
 # Распаковка: список содержимого бандла с размерами читается 1 раз (tar -tv),
