@@ -12,21 +12,29 @@ Instructions for the AI agent — [skills/os-migrate-tool/SKILL.md](skills/os-mi
 
 ## AI agent setup (`/init`)
 
-On a **new system**, point your AI agent at this repo and run `/init`
-(“initialize os-migrate-tool”). The agent must:
+On a **new system**, point your AI agent at this repo and paste the prompt:
 
-1. **Read [skills/os-migrate-tool/SKILL.md](skills/os-migrate-tool/SKILL.md)** —
-   the operator manual: agent workflow, commands, reports, rules.
-2. **Verify `configs/inventory.yaml`** against this system: paths may differ
-   (agent versions, session dirs — special attention to `group_agents.sessions`).
-   Non-existent paths are skipped automatically; every new path gets a `desc:` entry.
-3. **Tune `configs/selection.yaml`** for this user: what travels by default,
-   what stays off (heavy/optional). An ON sub-item travels even inside an
-   OFF group.
-4. **Review `configs/exclude_dirs.yaml`** (what never gets packed) and
-   `configs/mapping.toml` (install commands per system type) if targets changed.
-5. Never hardcode paths in pack.sh/unpack.sh — **configs only**.
-   System code lives in `src/`, user configuration in `configs/`.
+```text
+/init os-migrate-tool
+
+Read skills/os-migrate-tool/SKILL.md first — it is the operator manual
+(agent workflow, commands, reports, rules). Then prepare the configuration
+for me, this user:
+1. Verify configs/inventory.yaml against this system: paths may differ
+   (agent versions, session dirs — special attention to group_agents.sessions).
+   Non-existent paths are skipped automatically; add a desc: entry for every
+   new path.
+2. Tune configs/selection.yaml for me: what travels by default, what stays
+   off (heavy/optional). An ON sub-item travels even inside an OFF group.
+3. Review configs/exclude_dirs.yaml (what never gets packed) and
+   configs/mapping.toml (install commands per system type) if targets changed.
+4. Never hardcode paths in pack.sh/unpack.sh — configs only. System code
+   lives in src/, user configuration in configs/.
+5. Show the resulting checklist defaults for my approval when done.
+```
+
+Details: [skills/os-migrate-tool/SKILL.md](skills/os-migrate-tool/SKILL.md) ·
+internals: [docs/architecture.md](docs/architecture.md).
 
 ## What it packs
 
