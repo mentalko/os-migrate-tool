@@ -17,6 +17,8 @@ On a **new system**, point your AI agent at this repo and paste the prompt:
 ```text
 /init os-migrate-tool
 
+0. If this repo is not on this machine yet, clone it first:
+   git clone https://github.com/mentalko/os-migrate-tool.git
 Read skills/os-migrate-tool/SKILL.md first — it is the operator manual
 (agent workflow, commands, reports, rules). Then prepare the configuration
 for me, this user:

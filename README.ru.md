@@ -17,6 +17,8 @@ AppImages, dotfiles, пользовательские CLI (npm/uv/pipx/bin — �
 ```text
 /init os-migrate-tool
 
+0. Если этого репозитория ещё нет на машине — сначала склонируй:
+   git clone https://github.com/mentalko/os-migrate-tool.git
 Сначала прочитай skills/os-migrate-tool/SKILL.md — это руководство оператора
 (рабочий цикл агента, команды, отчёты, правила). Затем составь конфигурацию
 под меня, этого пользователя:
