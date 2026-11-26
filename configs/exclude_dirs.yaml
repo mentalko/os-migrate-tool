@@ -75,3 +75,44 @@ per_path:
     - uv                       # 37M бинарник uv — переустановить
     - uvx
     - "*.old"
+  .zcode:                      # агент ZCode
+    - cli/plugins/cache        # 220M кэш плагинов
+    - cli/image-cache
+    - v2/visualizations        # генерируется на лету
+    - "*.rpm"
+    - workspace/*/kiri-test    # распакованный rootfs (бинарник)
+  .config/ZCode:
+    - "*.asar"
+  .config/Freebuff:            # браузер Freebuff
+    - orchestrator-bundles     # бандлы оркестратора — перекачиваются
+  .config/google-chrome:
+    - "Default/Extensions/*/data/rules/*"   # rulesets Adblock (~80M), регенерируются
+    - CertificateRevocation    # crl-set, качаются заново
+    - Dictionaries
+    - "*.tflite"               # ML-модели
+    - "*.wasm"
+  .config/mozilla:
+    - "*.tflite"
+    - "*.wasm"
+  .local/share/opencode:       # сессии opencode: db/auth едут, снимки — нет
+    - snapshot
+  Downloads:                   # установщики/образы — не данные
+    - "*.AppImage"
+    - "*.img"
+    - "*.iso"
+    - "*.tar.xz"
+    - "*.tar.zst"
+    - "*.pkg.tar.*"
+    - redfin-factory-*.zip
+    - AlphaDroid-*.zip
+    - crDroidAndroid-*.zip
+    - Telegram                 # бинарник Telegram в Downloads
+    - yay                      # исходники yay
+    - alphadroid               # образы Android
+    - ventoy-*                 # утилита Ventoy
+  v2rayN:
+    - v2rayN-linux-64          # 303M бинарник; приложение ставится заново
+  bin:                         # ~/bin из группы data
+    - rclone                   # 82M бинарник
+  Documents:
+    - "*.bak"                  # дубли БД (hr_bot.db.bak ~107M)

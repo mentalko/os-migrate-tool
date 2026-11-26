@@ -106,6 +106,26 @@ m_of_clean() {
     du -sm --apparent-size "${ex[@]}" "$p" 2>/dev/null | cut -f1
 }
 
+# оценка для остальных сегментов: глобальные исключения + per_path, но без
+# dedup (иначе агентский/браузерный путь вычелся бы сам из себя)
+m_of_seg() {
+    local p="$1"; [[ "$p" == /* ]] || p="$HOME/$p"
+    local -a ex=() pp=()
+    local pat key
+    for pat in "${EXCL_PATTERNS_ARR[@]}"; do
+        [[ -n "$pat" ]] && ex+=(--exclude="$pat")
+    done
+    for key in "${!EXCL_PER_PATH[@]}"; do
+        if [[ "$p" == "$HOME/$key" || "$p" == "$HOME/$key/"* ]]; then
+            IFS=';' read -r -a pp <<<"${EXCL_PER_PATH[$key]}"
+            for pat in "${pp[@]}"; do
+                [[ -n "$pat" ]] && ex+=(--exclude="$HOME/$key/$pat")
+            done
+        fi
+    done
+    du -sm --apparent-size "${ex[@]}" "$p" 2>/dev/null | cut -f1
+}
+
 # путь годится, только если он существует и в нём (включая вложенные каталоги)
 # есть хотя бы один файл. Пустые/отсутствующие каталоги в чеклист и бандл не едут.
 path_usable() {
@@ -158,22 +178,22 @@ for p in "${DOT_ARR[@]}"; do
 done
 GRP_HAS_SUB[agents]=1
 for p in "${AGENT_DIRS_ARR[@]}"; do
-    path_usable "$p" && add_sub agents "agent:$p" "$(desc_of "$p" "агент: $p")" "$(m_of "$HOME/$p")" "~/$p" "$p"
+    path_usable "$p" && add_sub agents "agent:$p" "$(desc_of "$p" "агент: $p")" "$(m_of_seg "$HOME/$p")" "~/$p" "$p"
 done
 for p in "${AGENT_CONF_ARR[@]}"; do
-    path_usable "$p" && add_sub agents "agent:$p" "$(desc_of "$p" "агент-конфиг: $p")" "$(m_of "$HOME/$p")" "~/$p" "$p"
+    path_usable "$p" && add_sub agents "agent:$p" "$(desc_of "$p" "агент-конфиг: $p")" "$(m_of_seg "$HOME/$p")" "~/$p" "$p"
 done
 for p in "${AGENT_SESSIONS_ARR[@]}"; do
-    path_usable "$p" && add_sub agents "agent:$p" "$(desc_of "$p" "сессии: $p")" "$(m_of "$HOME/$p")" "~/$p — сессии (agents.sessions)" "$p"
+    path_usable "$p" && add_sub agents "agent:$p" "$(desc_of "$p" "сессии: $p")" "$(m_of_seg "$HOME/$p")" "~/$p — сессии (agents.sessions)" "$p"
 done
 GRP_HAS_SUB[browsers]=1
 for p in "${BROWSERS_ARR[@]}"; do
-    path_usable "$p" && add_sub browsers "browser:$p" "$(desc_of "$p" "браузер: $p")" "$(m_of "$HOME/$p")" "~/$p|на Cachy понадобится пароль старого keyring" "$p"
+    path_usable "$p" && add_sub browsers "browser:$p" "$(desc_of "$p" "браузер: $p")" "$(m_of_seg "$HOME/$p")" "~/$p|на Cachy понадобится пароль старого keyring" "$p"
 done
 if arr_nonempty "${APPDATA_ARR[@]}"; then
     GRP_HAS_SUB[appdata]=1
     for p in "${APPDATA_ARR[@]}"; do
-        path_usable "$p" && add_sub appdata "appdata:$p" "$(desc_of "$p" "данные приложения: $p")" "$(m_of "$HOME/$p")" "~/$p" "$p"
+        path_usable "$p" && add_sub appdata "appdata:$p" "$(desc_of "$p" "данные приложения: $p")" "$(m_of_seg "$HOME/$p")" "~/$p" "$p"
     done
 fi
 GRP_HAS_SUB[data]=1
@@ -183,25 +203,25 @@ done
 if arr_nonempty "${TMP_ARR[@]}"; then
     GRP_HAS_SUB[tmp]=1
     for p in "${TMP_ARR[@]}"; do
-        path_usable "$p" && add_sub tmp "tmp:$p" "$(desc_of "$p" "tmp: $p")" "$(m_of "$HOME/$p")" "~/$p — пересоздаваемые данные" "$p"
+        path_usable "$p" && add_sub tmp "tmp:$p" "$(desc_of "$p" "tmp: $p")" "$(m_of_seg "$HOME/$p")" "~/$p — пересоздаваемые данные" "$p"
     done
 fi
 if arr_nonempty "${EXTRA_ARR[@]}"; then
     GRP_HAS_SUB[extra]=1
     for p in "${EXTRA_ARR[@]}"; do
-        path_usable "$p" && add_sub extra "extra:$p" "$(desc_of "$p" "extra: $p")" "$(m_of "$HOME/$p")" "~/$p" "$p"
+        path_usable "$p" && add_sub extra "extra:$p" "$(desc_of "$p" "extra: $p")" "$(m_of_seg "$HOME/$p")" "~/$p" "$p"
     done
 fi
 if arr_nonempty "${FLATPAK_ARR[@]}"; then
     GRP_HAS_SUB[flatpak]=1
     for p in "${FLATPAK_ARR[@]}"; do
-        path_usable "$p" && add_sub flatpak "flatpak:$p" "$(desc_of "$p" "flatpak-данные: $p")" "$(m_of "$HOME/$p")" "~/$p — профили flatpak-приложений" "$p"
+        path_usable "$p" && add_sub flatpak "flatpak:$p" "$(desc_of "$p" "flatpak-данные: $p")" "$(m_of_seg "$HOME/$p")" "~/$p — профили flatpak-приложений" "$p"
     done
 fi
 if arr_nonempty "${TOOLCHAIN_ARR[@]}"; then
     GRP_HAS_SUB[toolchain]=1
     for p in "${TOOLCHAIN_ARR[@]}"; do
-        path_usable "$p" && add_sub toolchain "toolchain:$p" "$(desc_of "$p" "тулчейн: $p")" "$(m_of "$HOME/$p")" "~/$p — тяжёлое, обычно переустанавливают" "$p"
+        path_usable "$p" && add_sub toolchain "toolchain:$p" "$(desc_of "$p" "тулчейн: $p")" "$(m_of_seg "$HOME/$p")" "~/$p — тяжёлое, обычно переустанавливают" "$p"
     done
 fi
 
@@ -618,7 +638,7 @@ seg_tar() { # $1=каталог сегмента в бандле, $2=exclude-ф�
         if [[ "$seg" == dotfiles || "$seg" == data ]]; then
             raw=$(( raw + $(m_of_clean "$p") ))
         else
-            raw=$(( raw + $(m_of "$p") ))
+            raw=$(( raw + $(m_of_seg "$p") ))
         fi
     done
     local total_bytes=$(( raw * 1048576 ))
