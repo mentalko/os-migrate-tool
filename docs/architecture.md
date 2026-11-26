@@ -56,7 +56,7 @@ true/false/числа/строки, комментарии только целы
 срезается; anchors/flow/multi-line не поддерживаются. Формат наш — сложный
 YAML не нужен. Группы — ключи `group_<имя>` в порядке файла.
 
-**configs/inventory.yaml** — полный инвентарь (несуществующие пути авто-скип):
+**configs/inventory.yaml** — полный инвентарь (отсутствующие и пустые пути авто-скип):
 `group_appimages.dirs` — где искать AppImage; `group_dotfiles` — `dirs`+`files`;
 `group_agents` — `home`/`config`/`sessions` (сессии, покрытые родителями из
 home/config, conf.py отбрасывает — covered-check, двойной упаковки нет);

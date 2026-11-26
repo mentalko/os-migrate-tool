@@ -80,6 +80,19 @@ done
 hM() { awk -v m="$1" 'BEGIN{ if (m>=1024) printf "%.1fG", m/1024; else printf "%dM", m }'; }
 m_of() { local p="$1"; [[ "$p" == /* ]] || p="$HOME/$p"; du -sm --apparent-size "$p" 2>/dev/null | cut -f1; }
 
+# путь годится, только если он существует и в нём (включая вложенные каталоги)
+# есть хотя бы один файл. Пустые/отсутствующие каталоги в чеклист и бандл не едут.
+path_usable() {
+    local p="$1"
+    [[ -n "$p" ]] || return 1
+    [[ "$p" == /* ]] || p="$HOME/$p"
+    [[ -e "$p" ]] || return 1
+    if [[ -d "$p" ]] && [[ -z "$(find "$p" -mindepth 1 ! -type d -print -quit 2>/dev/null)" ]]; then
+        return 1
+    fi
+    return 0
+}
+
 desc_of() { # описание из configs/inventory.yaml (desc:); $1=ключ (путь/имя AppImage), $2=fallback
     local d="${DESC[$1]:-}"
     [[ -n "$d" ]] && { echo "$d"; return 0; }
@@ -115,54 +128,54 @@ if [[ -n "$APPS_FIND" ]]; then
 fi
 GRP_HAS_SUB[dotfiles]=1
 for p in "${DOT_ARR[@]}"; do
-    [[ -n "$p" && -e "$HOME/$p" ]] && add_sub dotfiles "dot:$p" "$(desc_of "$p" "$p")" "$(m_of "$HOME/$p")" "~/$p" "$p"
+    path_usable "$p" && add_sub dotfiles "dot:$p" "$(desc_of "$p" "$p")" "$(m_of "$HOME/$p")" "~/$p" "$p"
 done
 GRP_HAS_SUB[agents]=1
 for p in "${AGENT_DIRS_ARR[@]}"; do
-    [[ -n "$p" && -e "$HOME/$p" ]] && add_sub agents "agent:$p" "$(desc_of "$p" "агент: $p")" "$(m_of "$HOME/$p")" "~/$p" "$p"
+    path_usable "$p" && add_sub agents "agent:$p" "$(desc_of "$p" "агент: $p")" "$(m_of "$HOME/$p")" "~/$p" "$p"
 done
 for p in "${AGENT_CONF_ARR[@]}"; do
-    [[ -n "$p" && -e "$HOME/$p" ]] && add_sub agents "agent:$p" "$(desc_of "$p" "агент-конфиг: $p")" "$(m_of "$HOME/$p")" "~/$p" "$p"
+    path_usable "$p" && add_sub agents "agent:$p" "$(desc_of "$p" "агент-конфиг: $p")" "$(m_of "$HOME/$p")" "~/$p" "$p"
 done
 for p in "${AGENT_SESSIONS_ARR[@]}"; do
-    [[ -n "$p" && -e "$HOME/$p" ]] && add_sub agents "agent:$p" "$(desc_of "$p" "сессии: $p")" "$(m_of "$HOME/$p")" "~/$p — сессии (agents.sessions)" "$p"
+    path_usable "$p" && add_sub agents "agent:$p" "$(desc_of "$p" "сессии: $p")" "$(m_of "$HOME/$p")" "~/$p — сессии (agents.sessions)" "$p"
 done
 GRP_HAS_SUB[browsers]=1
 for p in "${BROWSERS_ARR[@]}"; do
-    [[ -n "$p" && -e "$HOME/$p" ]] && add_sub browsers "browser:$p" "$(desc_of "$p" "браузер: $p")" "$(m_of "$HOME/$p")" "~/$p|на Cachy понадобится пароль старого keyring" "$p"
+    path_usable "$p" && add_sub browsers "browser:$p" "$(desc_of "$p" "браузер: $p")" "$(m_of "$HOME/$p")" "~/$p|на Cachy понадобится пароль старого keyring" "$p"
 done
 if arr_nonempty "${APPDATA_ARR[@]}"; then
     GRP_HAS_SUB[appdata]=1
     for p in "${APPDATA_ARR[@]}"; do
-        [[ -n "$p" && -e "$HOME/$p" ]] && add_sub appdata "appdata:$p" "$(desc_of "$p" "данные приложения: $p")" "$(m_of "$HOME/$p")" "~/$p" "$p"
+        path_usable "$p" && add_sub appdata "appdata:$p" "$(desc_of "$p" "данные приложения: $p")" "$(m_of "$HOME/$p")" "~/$p" "$p"
     done
 fi
 GRP_HAS_SUB[data]=1
 for p in "${DATA_ARR[@]}"; do
-    [[ -n "$p" && -e "$HOME/$p" ]] && add_sub data "data:$p" "$(desc_of "$p" "данные: $p")" "$(m_of "$HOME/$p")" "~/$p" "$p"
+    path_usable "$p" && add_sub data "data:$p" "$(desc_of "$p" "данные: $p")" "$(m_of "$HOME/$p")" "~/$p" "$p"
 done
 if arr_nonempty "${TMP_ARR[@]}"; then
     GRP_HAS_SUB[tmp]=1
     for p in "${TMP_ARR[@]}"; do
-        [[ -n "$p" && ( -e "$HOME/$p" || -e "$p" ) ]] && add_sub tmp "tmp:$p" "$(desc_of "$p" "tmp: $p")" "$(m_of "$HOME/$p")" "~/$p — пересоздаваемые данные" "$p"
+        path_usable "$p" && add_sub tmp "tmp:$p" "$(desc_of "$p" "tmp: $p")" "$(m_of "$HOME/$p")" "~/$p — пересоздаваемые данные" "$p"
     done
 fi
 if arr_nonempty "${EXTRA_ARR[@]}"; then
     GRP_HAS_SUB[extra]=1
     for p in "${EXTRA_ARR[@]}"; do
-        [[ -n "$p" && -e "$HOME/$p" ]] && add_sub extra "extra:$p" "$(desc_of "$p" "extra: $p")" "$(m_of "$HOME/$p")" "~/$p" "$p"
+        path_usable "$p" && add_sub extra "extra:$p" "$(desc_of "$p" "extra: $p")" "$(m_of "$HOME/$p")" "~/$p" "$p"
     done
 fi
 if arr_nonempty "${FLATPAK_ARR[@]}"; then
     GRP_HAS_SUB[flatpak]=1
     for p in "${FLATPAK_ARR[@]}"; do
-        [[ -n "$p" && -e "$HOME/$p" ]] && add_sub flatpak "flatpak:$p" "$(desc_of "$p" "flatpak-данные: $p")" "$(m_of "$HOME/$p")" "~/$p — профили flatpak-приложений" "$p"
+        path_usable "$p" && add_sub flatpak "flatpak:$p" "$(desc_of "$p" "flatpak-данные: $p")" "$(m_of "$HOME/$p")" "~/$p — профили flatpak-приложений" "$p"
     done
 fi
 if arr_nonempty "${TOOLCHAIN_ARR[@]}"; then
     GRP_HAS_SUB[toolchain]=1
     for p in "${TOOLCHAIN_ARR[@]}"; do
-        [[ -n "$p" && -e "$HOME/$p" ]] && add_sub toolchain "toolchain:$p" "$(desc_of "$p" "тулчейн: $p")" "$(m_of "$HOME/$p")" "~/$p — тяжёлое, обычно переустанавливают" "$p"
+        path_usable "$p" && add_sub toolchain "toolchain:$p" "$(desc_of "$p" "тулчейн: $p")" "$(m_of "$HOME/$p")" "~/$p — тяжёлое, обычно переустанавливают" "$p"
     done
 fi
 
@@ -568,7 +581,11 @@ seg_tar() { # $1=каталог сегмента в бандле, $2=exclude-ф�
     local p raw=0
     while IFS= read -r p; do
         [[ -z "$p" ]] && continue
-        [[ -e "$HOME/$p" ]] && paths+=("$p")
+        if path_usable "$p"; then
+            paths+=("$p")
+        else
+            warn "$seg/: пропущен (нет или пусто): $p"
+        fi
     done <<<"$list"
     ((${#paths[@]})) || { warn "$seg/: нечего паковать, сегмент пропущен"; return 0; }
     for p in "${paths[@]}"; do raw=$(( raw + $(m_of "$p") )); done
@@ -687,6 +704,7 @@ write_paths() {
     if [[ -n "${GRP_SEL[appimg]:-}" ]]; then
         while IFS= read -r f; do
             [[ -n "$f" ]] || continue
+            path_usable "$f" || continue
             echo -e "appimages\tappimg\t$(m_of "$f")M\t$f\t${RUN_NAME}.tar.gz:appimages/$(basename "$f")\t\$HOME/Applications/$(basename "$f")"
         done <<<"${GRP_SEL[appimg]}"
     fi
@@ -697,6 +715,7 @@ write_paths() {
         [[ -n "${GRP_SEL[$grp]:-}" ]] || continue
         while IFS= read -r f; do
             [[ -n "$f" ]] || continue
+            path_usable "$f" || continue
             echo -e "$grp\t$grp\t-\t\$HOME/$f\t${RUN_NAME}.tar.gz:$seg/$f\t\$HOME/$f"
         done <<<"${GRP_SEL[$grp]}"
     done

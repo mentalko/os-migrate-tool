@@ -24,7 +24,7 @@ Read skills/os-migrate-tool/SKILL.md first — it is the operator manual
 for me, this user:
 1. Verify configs/inventory.yaml against this system: paths may differ
    (agent versions, session dirs — special attention to group_agents.sessions).
-   Non-existent paths are skipped automatically; add a desc: entry for every
+   Missing or empty paths are skipped automatically; add a desc: entry for every
    new path.
 2. Tune configs/selection.yaml for me: what travels by default, what stays
    off (heavy/optional). An ON sub-item travels even inside an OFF group.
