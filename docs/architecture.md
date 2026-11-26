@@ -242,9 +242,10 @@ TOML (stdlib `tomllib`, python ≥ 3.11). `[packages.<имя-в-ubuntu>]`: `name
 - **`.cache`** вырезается шаблонами `configs/exclude_dirs.yaml` (`.cache` + `cache`
   на любой глубине) из всех сегментов — включать его в `group_toolchain`
   бессмысленно (пункт-пустышка).
-- **Креды**: сегмент `agents` содержит `~/.zcode/cli/credentials.json` и данные
-  opencode (db/auth в `~/.local/share/opencode`) — SSD с бэкапом держать при
-  себе/шифровать (по умолчанию бэкапятся только zcode + opencode, см. selection).
+- **Креды**: сегмент `agents` содержит `~/.zcode/cli/credentials.json`, данные
+  opencode (db/auth в `~/.local/share/opencode`) и `.pencil/agent-auth`; конфиг
+  OpenWhispr содержит `auth-token.bin` — SSD с бэкапом держать при себе/шифровать
+  (по умолчанию бэкапятся zcode + opencode + pencil, см. selection).
 - Ключи браузеров привязаны к старому keyring — без его пароля пароли не
   откроются.
 

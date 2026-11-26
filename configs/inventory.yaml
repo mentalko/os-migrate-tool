@@ -54,6 +54,7 @@ group_agents:               # группа agents: данные ИИ-агент�
     - .pi-bolt
     - .kimi-code
     - .zcode
+    - .pencil             # Pencil: сессии, беседы, скиллы, agent-auth
     - .warp
     - .paseo
   config:                   # данные в .config
@@ -74,6 +75,9 @@ group_appdata:              # данные десктоп-приложений, 
     - .local/share/TelegramDesktop   # сессия Telegram (tdata)
     - .local/share/Throne/config     # конфиги прокси Throne (core-дампы режутся)
     - .config/freebuff-desktop       # Freebuff: состояние агента, проекты, ключ устройства
+    - .openwhispr                    # OpenWhispr: флаги/настройки (маленький каталог)
+    - .config/open-whispr            # OpenWhispr: профиль, токен, workspace-policy
+    - .config/termimus               # Termimus SSH: база подключений termimus.db
 
 group_programs:             # пользовательские CLI-программы: переустановка командами
   npm:                      # npm i -g <tool>
@@ -97,6 +101,8 @@ group_programs:             # пользовательские CLI-програ�
     - cursor-agent
     - devin
     - qodercli
+    - openwhispr
+    - termimus
 
 group_browsers:             # профили целиком
   paths:
@@ -172,6 +178,8 @@ desc:
   cursor-agent: Cursor CLI
   devin: Devin CLI (Cognition)
   qodercli: Qoder CLI
+  openwhispr: OpenWhispr: голосовой диктант (AUR openwhispr-bin)
+  termimus: Termimus SSH: менеджер серверов (AUR termimus-ssh-bin)
   .local/share/Throne/config: Throne (прокси): конфиги и профиль
   .zshrc: конфиг zsh
   .bashrc: конфиг bash
@@ -192,6 +200,7 @@ desc:
   .pi-bolt: pi/bolt-агент: данные
   .kimi-code: Kimi Code CLI: сессии
   .zcode: ZCode: сессии, конфиги (внимание: credentials.json!)
+  .pencil: Pencil: сессии, беседы, скиллы, agent-auth (внимание: креды!)
   .warp: Warp Terminal: данные
   .paseo: Paseo: данные
   .local/share/opencode: OpenCode: сессии (opencode.db), auth, snapshot
@@ -210,6 +219,9 @@ desc:
   .mozilla: Firefox: профиль, закладки, пароли
   .config/Freebuff: Freebuff Desktop: профиль (Partitions, cookies, сессии); кэши режутся
   .config/freebuff-desktop: Freebuff: состояние агента, проекты, ключ устройства
+  .openwhispr: OpenWhispr: пользовательские флаги и настройки
+  .config/open-whispr: OpenWhispr: профиль, auth-token.bin, workspace-policy (внимание: креды!)
+  .config/termimus: Termimus SSH: база серверов и подключений termimus.db
   Documents: проекты и рабочие документы
   Downloads: загрузки
   Desktop: рабочий стол (лаунчеры)

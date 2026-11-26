@@ -177,7 +177,8 @@ tar. Потерянный `.meta/` восстанавливается unpack'о�
 - Перед распаковкой браузеров убедиться, что пользователь помнит пароль
   старого keyring — иначе пароли в профиле не откроются.
 - Внимание: сегмент `agents` содержит креды (~/.zcode/cli/credentials.json,
-  данные opencode — db/auth в ~/.local/share/opencode) — SSD с бэкапом держать
-  при себе/шифровать. По умолчанию бэкапятся только zcode + opencode
-  (selection.yaml; codex/claude/qoder и пр. — off, решение владельца).
+  данные opencode — db/auth в ~/.local/share/opencode, `.pencil/agent-auth`) —
+  SSD с бэкапом держать при себе/шифровать. По умолчанию бэкапятся
+  zcode + opencode + pencil (selection.yaml; codex/claude/qoder и пр. — off,
+  решение владельца). Конфиг OpenWhispr тоже содержит `auth-token.bin`.
 - Прямые ссылки на файлы отчёта давать после каждого шага.

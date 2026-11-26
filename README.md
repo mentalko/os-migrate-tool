@@ -47,7 +47,7 @@ internals: [docs/architecture.md](docs/architecture.md).
 | `appimages` | `*.AppImage` from ~/Applications, ~/bin, ~/Desktop | → `~/Applications` |
 | `dotfiles` | ~/.config, ~/.ssh, ~/.gnupg, shell rc, fonts, history | → $HOME |
 | `data` | non-hidden home dirs: ~/Documents, Downloads, Desktop, Pictures, ~/bin; Music/Videos/Public/Templates — optional, off by default | → $HOME |
-| `agents` | AI-agent data — inventory in `inventory.yaml`; by default only zcode + opencode are selected (sessions, configs) | → $HOME |
+| `agents` | AI-agent data — inventory in `inventory.yaml`; by default zcode + opencode + pencil are selected (sessions, configs) | → $HOME |
 | `programs` | user CLIs (npm/uv/pipx/bin): no files in the bundle — unpack runs commands from `mapping.toml` (`npm i -g cline`, `uv tool install …`) and prints links; `bin` binaries travel with dotfiles | reinstall |
 | `browsers` | Chrome/Firefox/Freebuff Desktop profiles whole (on by default) | → $HOME |
 | `flatpak` | flatpak app profiles (~/.var) | → $HOME |

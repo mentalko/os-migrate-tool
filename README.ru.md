@@ -49,7 +49,7 @@ AppImages, dotfiles, пользовательские CLI (npm/uv/pipx/bin — �
 | `appimages` | `*.AppImage` из ~/Applications, ~/bin, ~/Desktop | → `~/Applications` |
 | `dotfiles` | ~/.config, ~/.ssh, ~/.gnupg, shell rc, шрифты, история | → $HOME |
 | `data` | не-скрытые каталоги home: ~/Documents, Downloads, Desktop, Pictures, ~/bin; Music/Videos/Public/Templates — опционально, по умолчанию выключено | → $HOME |
-| `agents` | данные ИИ-агентов — инвентарь в `inventory.yaml`; по умолчанию отмечены только zcode + opencode (сессии, конфиги) | → $HOME |
+| `agents` | данные ИИ-агентов — инвентарь в `inventory.yaml`; по умолчанию отмечены zcode + opencode + pencil (сессии, конфиги) | → $HOME |
 | `programs` | пользовательские CLI (npm/uv/pipx/bin): файлов в бандле нет — unpack выполняет команды из `mapping.toml` (`npm i -g cline`, `uv tool install …`) и печатает ссылки; `bin`-бинарники едут с dotfiles | переустановка |
 | `browsers` | профили Chrome/Firefox/Freebuff Desktop целиком (по умолчанию on) | → $HOME |
 | `flatpak` | профили flatpak-приложений (~/.var) | → $HOME |

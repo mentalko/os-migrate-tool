@@ -452,6 +452,16 @@ debian = "curl -fsSL https://cli.devin.ai/install.sh | bash"
 arch = "curl -fsSL https://cli.devin.ai/install.sh | bash"
 url = "https://devin.ai"
 
+[programs.bin.openwhispr]
+debian = "см. https://github.com/OpenWhispr/openwhispr/releases/latest"
+arch = "yay -S openwhispr-bin"
+url = "https://openwhispr.com/"
+
+[programs.bin.termimus]
+debian = "см. https://github.com/termimus/termimus-ssh"
+arch = "yay -S termimus-ssh-bin"
+url = "https://github.com/termimus/termimus-ssh"
+
 # --- AppImage: ссылка на скачивание (файл едет с ~/.local/bin в dotfiles) ---
 [appimages."freebuff.AppImage"]
 url = "https://freebuff.com/api/desktop/download/linux"

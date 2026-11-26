@@ -23,6 +23,7 @@ group_data:
 group_agents:
   on: true                  # сессии/данные бэкапим только zcode и opencode
   .zcode: true              # сессии, db, конфиги (внимание: credentials!)
+  .pencil: true             # сессии, беседы, скиллы, agent-auth
   .local/share/opencode: true   # сессии opencode (opencode.db), auth, snapshot
   .config/opencode: true    # конфиги и скиллы opencode
   .config/ZCode: true       # данные приложения ZCode
@@ -52,6 +53,9 @@ group_appdata:
   .local/share/TelegramDesktop: false
   .local/share/Throne/config: true
   .config/freebuff-desktop: true
+  .openwhispr: true
+  .config/open-whispr: true
+  .config/termimus: true
 
 group_programs:
   on: true                  # переустановка командами на Cachy; отметь нужное
@@ -72,6 +76,8 @@ group_programs:
   "cursor-agent": false      # (см. exclude_dirs/selection) — переустановка
   devin: false               # включается галочкой при необходимости
   qodercli: false
+  openwhispr: false
+  termimus: false
 
 group_browsers:
   on: true                  # Chrome + Firefox + Freebuff Desktop
