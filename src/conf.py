@@ -214,6 +214,12 @@ def main() -> int:
 
     # исключения (configs/exclude_dirs.yaml)
     arr("EXCL_PATTERNS_ARR", excl.get("tar", []) or [])
+    # пер-путевые исключения: ключ = путь из inventory, значение = ';'-список
+    # шаблонов tar. pack.sh разворачивает их в --exclude-from для сегмента.
+    assoc("EXCL_PER_PATH", {
+        str(k): ";".join(str(x) for x in (v or []))
+        for k, v in (excl.get("per_path") or {}).items()
+    })
     out.append(f"APPIMG_SKIP_ZERO={1 if excl.get('appimages', {}).get('skip_zero_size', False) else 0}")
 
     # маппинг пакетов (configs/mapping.toml) — команды по ТИПУ системы

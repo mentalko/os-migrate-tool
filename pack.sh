@@ -93,7 +93,17 @@ for pat in "${EXCL_PATTERNS_ARR[@]}"; do
 done
 m_of_clean() {
     local p="$1"; [[ "$p" == /* ]] || p="$HOME/$p"
-    du -sm --apparent-size "${DOT_EXCL[@]}" "$p" 2>/dev/null | cut -f1
+    local -a ex=("${DOT_EXCL[@]}") pp=()
+    local key pat
+    for key in "${!EXCL_PER_PATH[@]}"; do
+        if [[ "$p" == "$HOME/$key" || "$p" == "$HOME/$key/"* ]]; then
+            IFS=';' read -r -a pp <<<"${EXCL_PER_PATH[$key]}"
+            for pat in "${pp[@]}"; do
+                [[ -n "$pat" ]] && ex+=(--exclude="$HOME/$key/$pat")
+            done
+        fi
+    done
+    du -sm --apparent-size "${ex[@]}" "$p" 2>/dev/null | cut -f1
 }
 
 # путь годится, только если он существует и в нём (включая вложенные каталоги)
@@ -618,8 +628,24 @@ seg_tar() { # $1=каталог сегмента в бандле, $2=exclude-ф�
         ok "$seg/ — ~$(hM "$raw") (оценка: ~$(hM $seg_est)) [dry-run]"
     else
         # procsub инлайном: fd /dev/fd/N живёт только внутри команды tar
-        local -a pre=()
+        local -a pre=() pp=()
         [[ -n "$excl" ]] && pre=( --exclude-from="$excl" )
+        # пер-путевые исключения (per_path: в exclude_dirs.yaml) — только для
+        # выбранных путей этого сегмента, чтобы не резать данные других групп
+        local per_file="" key pat p2
+        per_file="$META/.excl-$seg"
+        : > "$per_file"
+        for p2 in "${paths[@]}"; do
+            for key in "${!EXCL_PER_PATH[@]}"; do
+                if [[ "$p2" == "$key" || "$p2" == "$key/"* ]]; then
+                    IFS=';' read -r -a pp <<<"${EXCL_PER_PATH[$key]}"
+                    for pat in "${pp[@]}"; do
+                        [[ -n "$pat" ]] && printf '%s/%s\n' "$key" "$pat" >> "$per_file"
+                    done
+                fi
+            done
+        done
+        [[ -s "$per_file" ]] && pre+=( --exclude-from="$per_file" ) || per_file=""
         tar_rc=0
         ( cd "$HOME" && tar -c${COMPRESS_OPT}f - --transform "s,^,$seg/," "${pre[@]}" \
             --checkpoint=200 --checkpoint-action="exec=$OMT_LIB_DIR/progress-line \"$seg\" $total_bytes" \

@@ -29,14 +29,14 @@ pack.sh ──► SSD/os-migrate-tool/ ──► unpack.sh
 | `src/progress-line` | Прогресс-бар `▓▓░░` для `--checkpoint` tar: байты → строка статуса |
 | `configs/inventory.yaml` | Полный инвентарь: группы `group_*` с секциями + `desc:` |
 | `configs/selection.yaml` | Галочки по умолчанию: `group_<имя>.on` + вложенные пути |
-| `configs/exclude_dirs.yaml` | Исключения: `tar:` шаблоны (все сегменты) + `appimages.skip_zero_size` |
+| `configs/exclude_dirs.yaml` | Исключения: `tar:` шаблоны (все сегменты), `per_path:` (внутри пути, dotfiles/data) + `appimages.skip_zero_size` |
 | `configs/mapping.toml` | Пакеты и программы: команды по типу системы (arch/debian), url для ручной установки |
 | `configs/README.md` | Краткое описание каждого конфига |
 
 ## Конфигурация: inventory.yaml + selection.yaml
 
 Три YAML-файла в `configs/`; парсит `src/conf.py` и печатает bash-код для `eval` в pack.sh
-(exclude_dirs → `EXCL_PATTERNS_ARR` + `APPIMG_SKIP_ZERO`; mapping.toml →
+(exclude_dirs → `EXCL_PATTERNS_ARR` + `EXCL_PER_PATH` + `APPIMG_SKIP_ZERO`; mapping.toml →
 `MAPPING_STATUS`/`PKG_CMD`/`MAPPING_URL`/`APPIMG_URL`/`PROG_CMD`/`PROG_URL`):
 массивы путей (`AGENT_DIRS_ARR`, `DOT_ARR`, `AGENT_SESSIONS_ARR`, …), assoc
 `DESC` (описания), `TUI_GRP_STATE` (ON/OFF по группам), `TUI_SEL`
