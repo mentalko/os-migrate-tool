@@ -242,7 +242,7 @@ _tree_feed() { # TREE-протокол для tui.py: группы + подпу�
             for sec in "${PROG_SECS_ARR[@]}"; do
                 printf 'SEC;%s;%s;%s;%s;%s\n' "$g" "$sec" "менеджер: $sec" "0" "${PROG_SEC_STATE[programs|$sec]}"
                 for t in "PROG_${sec^^}_ARR[@]"; do
-                    for tool in "${!tool}"; do
+                    for tool in "${!t}"; do
                         d=$(desc_of "$tool" "$tool")
                         printf 'T;%s;%s;%s;%s;%s;%s;%s;%s\n' "$g" "$sec" "$tool" "$d" "0" "${PROG_TOOL_STATE[programs|$sec|$tool]}" "переустановка на Cachy" ""
                     done
@@ -602,7 +602,12 @@ seg_tar() { # $1=каталог сегмента в бандле, $2=exclude-ф�
 # ---------- 8a. Манифесты пакетов (в meta, затем сегментом в бандл) ----------
 if [[ -n "${GRP_SIZE_PLAN[packages]:-}" ]]; then
     if (( DRY )); then
-        dry "dpkg --get-selections > packages/apt-list.txt"
+        if command -v dpkg >/dev/null 2>&1; then
+            dry "dpkg --get-selections > packages/apt-list.txt"
+        elif command -v pacman >/dev/null 2>&1; then
+            dry "pacman -Qqe > packages/pacman-explicit.txt"
+            dry "pacman -Qqm > packages/pacman-foreign.txt"
+        fi
         dry "flatpak list --app > packages/flatpak-list.txt"
         dry "code --list-extensions > packages/code-extensions.txt"
         dry "dconf dump / > packages/dconf.dump"
@@ -611,7 +616,19 @@ if [[ -n "${GRP_SIZE_PLAN[packages]:-}" ]]; then
         dry "npm ls -g --depth=0 > packages/npm-global.txt"
         dry "pip3 list --user > packages/pip-user.txt"
     else
-        dpkg --get-selections > "$META/packages/apt-list.txt"
+        # источник может быть не debian-подобным (например, текущая CachyOS):
+        # dpkg может отсутствовать — тогда собираем pacman-списки, а apt-list
+        # оставляем пустым, чтобы unpack не падал на отсутствующем файле.
+        : > "$META/packages/apt-list.txt"
+        if command -v dpkg >/dev/null 2>&1; then
+            dpkg --get-selections > "$META/packages/apt-list.txt"
+        elif command -v pacman >/dev/null 2>&1; then
+            pacman -Qqe > "$META/packages/pacman-explicit.txt"
+            pacman -Qqm > "$META/packages/pacman-foreign.txt"
+            warn "dpkg не найден — собраны pacman-списки; имена пакетов не совпадают с apt-маппингом"
+        else
+            warn "нет ни dpkg, ни pacman — список пакетов пуст"
+        fi
         command -v flatpak >/dev/null && flatpak list --app --columns=application > "$META/packages/flatpak-list.txt" || true
         command -v code >/dev/null && code --list-extensions > "$META/packages/code-extensions.txt" || true
         command -v dconf >/dev/null && dconf dump / > "$META/packages/dconf.dump" || true
@@ -659,7 +676,7 @@ if (( ! DRY )); then rm -rf "$META/packages" "$META/appimages"; fi
 write_paths() {
     echo -e "group\ttag\tsize\tsource\tarchive\tdest"
     if [[ -n "${GRP_SIZE_PLAN[packages]:-}" ]]; then
-        echo -e "packages\tpackages\t15M\t(manifests: dpkg/flatpak/code/dconf/cron/systemd)\t${RUN_NAME}.tar.gz:packages/\t\$HOME"
+        echo -e "packages\tpackages\t15M\t(manifests: dpkg|pacman/flatpak/code/dconf/cron/systemd)\t${RUN_NAME}.tar.gz:packages/\t\$HOME"
     fi
     if [[ -n "${PROGS_SEL:-}" ]]; then
         while IFS= read -r pt; do

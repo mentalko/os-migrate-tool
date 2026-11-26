@@ -430,11 +430,18 @@ for s in "${SEL[@]}"; do
     case "$s" in
         packages)
             if (( DRY )); then
-                dry "packages: сверка apt-list с configs/mapping.toml + flatpak/vscode/dconf/cron"
+                dry "packages: сверка списков пакетов с configs/mapping.toml + flatpak/vscode/dconf/cron"
                 continue
             fi
-            info "Сверка apt-list с configs/mapping.toml (тип: $SYS_TYPE)..."
+            info "Сверка списков пакетов с configs/mapping.toml (тип: $SYS_TYPE)..."
             installed=0
+            # источник мог быть debian (apt-list) или arch (pacman-списки)
+            PKGS_FILES=()
+            [[ -f "$META/packages/apt-list.txt" ]] && PKGS_FILES+=("$META/packages/apt-list.txt")
+            for pf in pacman-explicit.txt pacman-foreign.txt; do
+                [[ -s "$META/packages/$pf" ]] && PKGS_FILES+=("$META/packages/$pf")
+            done
+            PKGS_ALL() { cat "${PKGS_FILES[@]}" 2>/dev/null | cut -f1 | sort -u; }
             # точное совпадение первого поля через assoc (grep -E ломался на '+' в именах)
             while IFS= read -r pkg; do
                 [[ -z "$pkg" ]] && continue
@@ -447,10 +454,10 @@ for s in "${SEL[@]}"; do
                     skip) ok "  $pkg — skip (не переносится)";;
                     manual) ok "  $pkg — manual (ссылка в конце отчёта)";;
                 esac
-            done < <(cut -f1 "$META/packages/apt-list.txt")
-            # что в apt-list, но нет в mapping
-            cut -f1 "$META/packages/apt-list.txt" | while read -r p; do
-                [[ -n "${MAPPING_STATUS[$p]:-}" ]] || echo "$p" >> "$MISSING.tmp"
+            done < <(PKGS_ALL)
+            # что есть в списках, но нет в mapping
+            PKGS_ALL | while read -r p; do
+                [[ -n "$p" && -z "${MAPPING_STATUS[$p]:-}" ]] && echo "$p" >> "$MISSING.tmp"
             done
             [[ -f "$MISSING.tmp" ]] && { sort -u "$MISSING.tmp" >> "$MISSING"; rm "$MISSING.tmp"; }
             # flatpak: НЕ ставим автоматически — печатаем ссылки (см. отчёт)

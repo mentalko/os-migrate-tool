@@ -217,7 +217,7 @@ desc:
   .config/BraveSoftware: Brave: профиль, пароли, расширения
   .config/chromium: Chromium: профиль
   .mozilla: Firefox: профиль, закладки, пароли
-  .config/Freebuff: Freebuff Desktop: профиль (Partitions, cookies, сессии); кэши режутся
+  .config/Freebuff: Freebuff Desktop: профиль (Partitions, cookies, сессии), кэши режутся
   .config/freebuff-desktop: Freebuff: состояние агента, проекты, ключ устройства
   .openwhispr: OpenWhispr: пользовательские флаги и настройки
   .config/open-whispr: OpenWhispr: профиль, auth-token.bin, workspace-policy (внимание: креды!)
