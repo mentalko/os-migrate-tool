@@ -64,6 +64,28 @@ appimages:
 # Бинарники/бандлы сюда: данные едут, исполняемые файлы переустанавливаются.
 per_path:
   .config:
+    # Чужие сегменты: эти каталоги едут в agents/browsers/appdata, а не здесь.
+    # (Основная дедупликация строится автоматически из групп inventory —
+    #  это просто явная страховка и видимость правила в конфиге.)
+    - google-chrome            # → browsers
+    - BraveSoftware            # → browsers
+    - chromium                 # → browsers
+    - mozilla                  # → browsers
+    - Freebuff                 # → browsers
+    - ZCode                    # → agents
+    - opencode                 # → agents
+    - Qoder                    # → agents
+    - com.qoder.app.stable     # → agents
+    - Codex                    # → agents
+    - cursor                   # → agents
+    - Cursor                   # → agents
+    - CherryStudio             # → agents
+    - warp-terminal            # → agents
+    - open-whispr              # → appdata
+    - freebuff-desktop         # → appdata
+    - termimus                 # → appdata
+    - termix                   # → appdata
+    # Бинарники/бандлы — переустанавливаются, а не переносятся:
     - "*.asar"                 # Obsidian и др. asar-бандлы приложений (24M)
     - "*.AppImage"
     - "*.deb"
@@ -90,9 +112,6 @@ per_path:
     - CertificateRevocation    # crl-set, качаются заново
     - Dictionaries
     - "*.tflite"               # ML-модели
-    - "*.wasm"
-  .config/mozilla:
-    - "*.tflite"
     - "*.wasm"
   .local/share/opencode:       # сессии opencode: db/auth едут, снимки — нет
     - snapshot

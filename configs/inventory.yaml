@@ -109,7 +109,8 @@ group_browsers:             # профили целиком
     - .config/google-chrome
     - .config/BraveSoftware
     - .config/chromium
-    - .mozilla
+    - .mozilla                # классический путь Firefox (если есть)
+    - .config/mozilla         # Firefox на новых системах: профиль здесь
     - .config/Freebuff       # Freebuff Desktop: Partitions, cookies, сессии; кэши режутся
 
 group_data:                 # не-скрытые каталоги home
@@ -216,7 +217,8 @@ desc:
   .config/google-chrome: Chrome: профиль, пароли, расширения
   .config/BraveSoftware: Brave: профиль, пароли, расширения
   .config/chromium: Chromium: профиль
-  .mozilla: Firefox: профиль, закладки, пароли
+  .mozilla: Firefox: профиль, закладки, пароли (классический путь)
+  .config/mozilla: Firefox: профиль, закладки, пароли (новые системы)
   .config/Freebuff: Freebuff Desktop: профиль (Partitions, cookies, сессии), кэши режутся
   .config/freebuff-desktop: Freebuff: состояние агента, проекты, ключ устройства
   .openwhispr: OpenWhispr: пользовательские флаги и настройки

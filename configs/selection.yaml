@@ -82,6 +82,7 @@ group_programs:
 group_browsers:
   on: true                  # Chrome + Firefox + Freebuff Desktop
   .config/Freebuff: true
+  .config/mozilla: true     # Firefox на новых системах; .mozilla — если есть
 
 group_flatpak:
   on: true                  # профили flatpak-приложений (.var)
