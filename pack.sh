@@ -80,6 +80,22 @@ done
 hM() { awk -v m="$1" 'BEGIN{ if (m>=1024) printf "%.1fG", m/1024; else printf "%dM", m }'; }
 m_of() { local p="$1"; [[ "$p" == /* ]] || p="$HOME/$p"; du -sm --apparent-size "$p" 2>/dev/null | cut -f1; }
 
+# В сегментах dotfiles/data часть путей вырезается из tar (dedup агентов,
+# браузеров, flatpak, тулчейна + общие исключения). Оценка размера должна
+# вычитать то же самое, иначе прогресс-бар считает 4 ГБ вместо ~400 МБ.
+DOT_EXCL=()
+for p in "${AGENT_DIRS_ARR[@]}" "${AGENT_CONF_ARR[@]}" "${AGENT_SESSIONS_ARR[@]}" \
+         "${BROWSERS_ARR[@]}" "${FLATPAK_ARR[@]}" "${TOOLCHAIN_ARR[@]}"; do
+    [[ -n "$p" ]] && DOT_EXCL+=(--exclude="$HOME/${p%/}")
+done
+for pat in "${EXCL_PATTERNS_ARR[@]}"; do
+    [[ -n "$pat" ]] && DOT_EXCL+=(--exclude="$pat")
+done
+m_of_clean() {
+    local p="$1"; [[ "$p" == /* ]] || p="$HOME/$p"
+    du -sm --apparent-size "${DOT_EXCL[@]}" "$p" 2>/dev/null | cut -f1
+}
+
 # путь годится, только если он существует и в нём (включая вложенные каталоги)
 # есть хотя бы один файл. Пустые/отсутствующие каталоги в чеклист и бандл не едут.
 path_usable() {
@@ -128,7 +144,7 @@ if [[ -n "$APPS_FIND" ]]; then
 fi
 GRP_HAS_SUB[dotfiles]=1
 for p in "${DOT_ARR[@]}"; do
-    path_usable "$p" && add_sub dotfiles "dot:$p" "$(desc_of "$p" "$p")" "$(m_of "$HOME/$p")" "~/$p" "$p"
+    path_usable "$p" && add_sub dotfiles "dot:$p" "$(desc_of "$p" "$p")" "$(m_of_clean "$HOME/$p")" "~/$p" "$p"
 done
 GRP_HAS_SUB[agents]=1
 for p in "${AGENT_DIRS_ARR[@]}"; do
@@ -152,7 +168,7 @@ if arr_nonempty "${APPDATA_ARR[@]}"; then
 fi
 GRP_HAS_SUB[data]=1
 for p in "${DATA_ARR[@]}"; do
-    path_usable "$p" && add_sub data "data:$p" "$(desc_of "$p" "данные: $p")" "$(m_of "$HOME/$p")" "~/$p" "$p"
+    path_usable "$p" && add_sub data "data:$p" "$(desc_of "$p" "данные: $p")" "$(m_of_clean "$HOME/$p")" "~/$p" "$p"
 done
 if arr_nonempty "${TMP_ARR[@]}"; then
     GRP_HAS_SUB[tmp]=1
@@ -588,7 +604,13 @@ seg_tar() { # $1=каталог сегмента в бандле, $2=exclude-ф�
         fi
     done <<<"$list"
     ((${#paths[@]})) || { warn "$seg/: нечего паковать, сегмент пропущен"; return 0; }
-    for p in "${paths[@]}"; do raw=$(( raw + $(m_of "$p") )); done
+    for p in "${paths[@]}"; do
+        if [[ "$seg" == dotfiles || "$seg" == data ]]; then
+            raw=$(( raw + $(m_of_clean "$p") ))
+        else
+            raw=$(( raw + $(m_of "$p") ))
+        fi
+    done
     local total_bytes=$(( raw * 1048576 ))
     if (( DRY )); then
         dry "tar -c${COMPRESS_OPT}f - --transform 's,^,$seg/,' … (${paths[*]})"
