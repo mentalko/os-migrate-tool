@@ -94,9 +94,10 @@ done
 m_of_clean() {
     local p="$1"; [[ "$p" == /* ]] || p="$HOME/$p"
     local -a ex=("${DOT_EXCL[@]}") pp=()
-    local key pat
+    local key pat prel="${p#$HOME/}"
     for key in "${!EXCL_PER_PATH[@]}"; do
-        if [[ "$p" == "$HOME/$key" || "$p" == "$HOME/$key/"* ]]; then
+        # ключ может быть и самим путём, и вложенным в него, и его родителем
+        if [[ "$prel" == "$key" || "$prel" == "$key/"* || "$key" == "$prel/"* ]]; then
             IFS=';' read -r -a pp <<<"${EXCL_PER_PATH[$key]}"
             for pat in "${pp[@]}"; do
                 [[ -n "$pat" ]] && ex+=(--exclude="$HOME/$key/$pat")
@@ -111,12 +112,12 @@ m_of_clean() {
 m_of_seg() {
     local p="$1"; [[ "$p" == /* ]] || p="$HOME/$p"
     local -a ex=() pp=()
-    local pat key
+    local pat key prel="${p#$HOME/}"
     for pat in "${EXCL_PATTERNS_ARR[@]}"; do
         [[ -n "$pat" ]] && ex+=(--exclude="$pat")
     done
     for key in "${!EXCL_PER_PATH[@]}"; do
-        if [[ "$p" == "$HOME/$key" || "$p" == "$HOME/$key/"* ]]; then
+        if [[ "$prel" == "$key" || "$prel" == "$key/"* || "$key" == "$prel/"* ]]; then
             IFS=';' read -r -a pp <<<"${EXCL_PER_PATH[$key]}"
             for pat in "${pp[@]}"; do
                 [[ -n "$pat" ]] && ex+=(--exclude="$HOME/$key/$pat")
@@ -614,9 +615,11 @@ if (( ! DRY )); then
     EXCL_DEDUP="$META/.exclude-dedup"
     : > "$EXCL_DEDUP"
     for p in "${AGENT_DIRS_ARR[@]}" "${AGENT_CONF_ARR[@]}" "${BROWSERS_ARR[@]}" "${FLATPAK_ARR[@]}" "${TOOLCHAIN_ARR[@]}"; do
-        [[ -n "$p" ]] && printf '%s/\n' "$p" >> "$EXCL_DEDUP"
+        # без хвостового '/': tar exclude 'dir/' матчит только сам каталог,
+        # но НЕ其内容 — дубли должны резаться вместе со всем поддеревом
+        [[ -n "$p" ]] && printf '%s\n' "$p" >> "$EXCL_DEDUP"
     done
-    printf 'Documents/os-migrate-tool/\n' >> "$EXCL_DEDUP"
+    printf 'Documents/os-migrate-tool\n' >> "$EXCL_DEDUP"
     cat "$EXCL_PATTERNS" "$EXCL_DEDUP" > "$META/exclude-dotfiles-data"
     EXCL_DOTDATA="$META/exclude-dotfiles-data"
 fi
@@ -657,7 +660,7 @@ seg_tar() { # $1=каталог сегмента в бандле, $2=exclude-ф�
         : > "$per_file"
         for p2 in "${paths[@]}"; do
             for key in "${!EXCL_PER_PATH[@]}"; do
-                if [[ "$p2" == "$key" || "$p2" == "$key/"* ]]; then
+                if [[ "$p2" == "$key" || "$p2" == "$key/"* || "$key" == "$p2/"* ]]; then
                     IFS=';' read -r -a pp <<<"${EXCL_PER_PATH[$key]}"
                     for pat in "${pp[@]}"; do
                         [[ -n "$pat" ]] && printf '%s/%s\n' "$key" "$pat" >> "$per_file"
