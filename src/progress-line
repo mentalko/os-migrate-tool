@@ -4,7 +4,8 @@
 # Вызывается tar'ом: exec="progress-line <сегмент> <ожидаемых_байт>";
 # tar передаёт в $TAR_CHECKPOINT НОМЕР записи (накопительно; pack задаёт
 # --checkpoint=200 → срабатывание каждые ~2МБ). 1 запись = 10240 байт.
-# Пишет \r-строку в stderr.
+# В интерактивном терминале перезаписывает одну и ту же строку (\r + очистка),
+# при перенаправлении в лог пишет обычные строки с \n.
 
 seg="${1:-?}"
 total="${2:-0}"
@@ -25,5 +26,9 @@ for ((i = 0; i < empty; i++)); do bar+="░"; done
 
 done_b=$(( bytes / 1048576 ))
 total_m=$(( total / 1048576 ))
-printf '  %s [%s] %3d%% (%sM/%sM)\n' "$seg" "$bar" "$pct" "$done_b" "$total_m" >&2
+if [[ -t 2 ]]; then
+    printf '\r\033[2K  %s [%s] %3d%% (%sM/%sM)' "$seg" "$bar" "$pct" "$done_b" "$total_m" >&2
+else
+    printf '  %s [%s] %3d%% (%sM/%sM)\n' "$seg" "$bar" "$pct" "$done_b" "$total_m" >&2
+fi
 exit 0

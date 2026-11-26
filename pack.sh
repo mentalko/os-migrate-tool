@@ -602,6 +602,8 @@ seg_tar() { # $1=каталог сегмента в бандле, $2=exclude-ф�
         ( cd "$HOME" && tar -c${COMPRESS_OPT}f - --transform "s,^,$seg/," "${pre[@]}" \
             --checkpoint=200 --checkpoint-action="exec=$OMT_LIB_DIR/progress-line \"$seg\" $total_bytes" \
             --files-from <(printf '%s\n' "${paths[@]}") ) >> "$BUNDLE" || tar_rc=$?
+        # progress-line перезаписывал одну строку — убираем её перед итоговой
+        [[ -t 2 ]] && printf '\r\033[2K' >&2
         local w=24 fill=24 empty=0 i bar=""
         for ((i = 0; i < fill; i++)); do bar+="▓"; done
         for ((i = 0; i < empty; i++)); do bar+="░"; done
