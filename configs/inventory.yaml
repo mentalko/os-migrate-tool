@@ -73,6 +73,7 @@ group_appdata:              # данные десктоп-приложений, 
   paths:
     - .local/share/TelegramDesktop   # сессия Telegram (tdata)
     - .local/share/Throne/config     # конфиги прокси Throne (core-дампы режутся)
+    - .config/freebuff-desktop       # Freebuff: состояние агента, проекты, ключ устройства
 
 group_programs:             # пользовательские CLI-программы: переустановка командами
   npm:                      # npm i -g <tool>
@@ -103,6 +104,7 @@ group_browsers:             # профили целиком
     - .config/BraveSoftware
     - .config/chromium
     - .mozilla
+    - .config/Freebuff       # Freebuff Desktop: Partitions, cookies, сессии; кэши режутся
 
 group_data:                 # не-скрытые каталоги home
   paths:
@@ -111,6 +113,10 @@ group_data:                 # не-скрытые каталоги home
     - Desktop
     - Pictures
     - bin
+    - Music                 # по умолчанию выключено (почти пусто)
+    - Videos                # по умолчанию выключено (почти пусто)
+    - Public                # по умолчанию выключено (почти пусто)
+    - Templates             # по умолчанию выключено (почти пусто)
 
 group_toolchain:            # тяжёлое, обычно переустанавливают
   paths:
@@ -202,11 +208,17 @@ desc:
   .config/BraveSoftware: Brave: профиль, пароли, расширения
   .config/chromium: Chromium: профиль
   .mozilla: Firefox: профиль, закладки, пароли
+  .config/Freebuff: Freebuff Desktop: профиль (Partitions, cookies, сессии); кэши режутся
+  .config/freebuff-desktop: Freebuff: состояние агента, проекты, ключ устройства
   Documents: проекты и рабочие документы
   Downloads: загрузки
   Desktop: рабочий стол (лаунчеры)
   Pictures: изображения
   bin: личные скрипты и утилиты (~/bin)
+  Music: музыка
+  Videos: видео
+  Public: файлы для общего доступа
+  Templates: шаблоны документов
   .rustup: Rust: rustup и тулчейны (rustc/cargo)
   .nvm: Node.js: версии через nvm
   .bun: Bun: рантайм и кэш
@@ -219,3 +231,4 @@ desc:
   v2rayN: v2rayN: конфиги прокси
   Pen-linux-x86_64.AppImage: Pen: рисование/заметки стилусом
   ZCode.AppImage: ZCode: ИИ-агент (файл битый, 0 байт)
+  freebuff.AppImage: Freebuff Desktop: ИИ-агент (AppImage, едет с ~/.local/bin)

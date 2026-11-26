@@ -34,7 +34,8 @@ AppImages, dotfiles, пользовательские CLI (npm/uv/pipx/bin — �
    изменились.
 4. Не хардкодь пути в pack.sh/unpack.sh — только конфиги. Системный код —
    в src/, пользовательские конфиги — в configs/.
-5. В конце покажи итоговые дефолты галочек на моё подтверждение.
+5. Запиши итоговые `configs/*.yaml` и покажи diff вместе с дефолтами
+   чеклиста на моё подтверждение.
 ```
 
 Детали: [skills/os-migrate-tool/SKILL.md](skills/os-migrate-tool/SKILL.md) ·
@@ -47,10 +48,10 @@ AppImages, dotfiles, пользовательские CLI (npm/uv/pipx/bin — �
 | `packages` | списки apt/flatpak/VS Code/dconf/cron/systemd-user | переустановка через pacman/yay по `mapping.toml` |
 | `appimages` | `*.AppImage` из ~/Applications, ~/bin, ~/Desktop | → `~/Applications` |
 | `dotfiles` | ~/.config, ~/.ssh, ~/.gnupg, shell rc, шрифты, история | → $HOME |
-| `data` | не-скрытые каталоги home: ~/Documents, Downloads, Desktop, Pictures, ~/bin | → $HOME |
+| `data` | не-скрытые каталоги home: ~/Documents, Downloads, Desktop, Pictures, ~/bin; Music/Videos/Public/Templates — опционально, по умолчанию выключено | → $HOME |
 | `agents` | данные ИИ-агентов — инвентарь в `inventory.yaml`; по умолчанию отмечены только zcode + opencode (сессии, конфиги) | → $HOME |
 | `programs` | пользовательские CLI (npm/uv/pipx/bin): файлов в бандле нет — unpack выполняет команды из `mapping.toml` (`npm i -g cline`, `uv tool install …`) и печатает ссылки; `bin`-бинарники едут с dotfiles | переустановка |
-| `browsers` | профили Chrome/Firefox целиком (по умолчанию on) | → $HOME |
+| `browsers` | профили Chrome/Firefox/Freebuff Desktop целиком (по умолчанию on) | → $HOME |
 | `flatpak` | профили flatpak-приложений (~/.var) | → $HOME |
 | `toolchain` | rustup/nvm/bun/npm/vscode (по умолчанию off — переустановить) | → $HOME |
 | `extra` | paperless-ngx, Sync, v2rayN (группа off; v2rayN, paperless-ngx, Sync включены точечно) | → $HOME |

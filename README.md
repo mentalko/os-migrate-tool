@@ -32,7 +32,8 @@ for me, this user:
    configs/mapping.toml (install commands per system type) if targets changed.
 4. Never hardcode paths in pack.sh/unpack.sh — configs only. System code
    lives in src/, user configuration in configs/.
-5. Show the resulting checklist defaults for my approval when done.
+5. Write the final `configs/*.yaml` and show the diff together with the
+   resulting checklist defaults for my approval.
 ```
 
 Details: [skills/os-migrate-tool/SKILL.md](skills/os-migrate-tool/SKILL.md) ·
@@ -45,10 +46,10 @@ internals: [docs/architecture.md](docs/architecture.md).
 | `packages` | apt/flatpak/VS Code/dconf/cron/systemd-user lists | reinstall via pacman/yay per `mapping.toml` |
 | `appimages` | `*.AppImage` from ~/Applications, ~/bin, ~/Desktop | → `~/Applications` |
 | `dotfiles` | ~/.config, ~/.ssh, ~/.gnupg, shell rc, fonts, history | → $HOME |
-| `data` | non-hidden home dirs: ~/Documents, Downloads, Desktop, Pictures, ~/bin | → $HOME |
+| `data` | non-hidden home dirs: ~/Documents, Downloads, Desktop, Pictures, ~/bin; Music/Videos/Public/Templates — optional, off by default | → $HOME |
 | `agents` | AI-agent data — inventory in `inventory.yaml`; by default only zcode + opencode are selected (sessions, configs) | → $HOME |
 | `programs` | user CLIs (npm/uv/pipx/bin): no files in the bundle — unpack runs commands from `mapping.toml` (`npm i -g cline`, `uv tool install …`) and prints links; `bin` binaries travel with dotfiles | reinstall |
-| `browsers` | Chrome/Firefox profiles whole (on by default) | → $HOME |
+| `browsers` | Chrome/Firefox/Freebuff Desktop profiles whole (on by default) | → $HOME |
 | `flatpak` | flatpak app profiles (~/.var) | → $HOME |
 | `toolchain` | rustup/nvm/bun/npm/vscode (off by default — reinstall) | → $HOME |
 | `extra` | paperless-ngx, Sync, v2rayN (group off; v2rayN, paperless-ngx, Sync selected point-wise) | → $HOME |

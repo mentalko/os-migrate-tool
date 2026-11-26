@@ -336,14 +336,14 @@ name = "chatgpt"
 debian = "sudo apt install -y chatgpt"
 status = "manual"
 note = "проверить AUR (chatgpt-desktop), иначе веб/AppImage"
-# url = "https://…"  ← добавить актуальную ссылку
+url = "https://chatgpt.com/download/"
 
 [packages."folo"]
 name = "folo"
 debian = "sudo apt install -y folo"
 status = "manual"
 note = "проверить AUR, иначе вручную"
-# url = "https://…"  ← добавить актуальную ссылку
+url = "https://folo.is/"
 
 [packages."droidcam-client"]
 name = "droidcam-client"
@@ -434,10 +434,12 @@ url = "https://kiro.dev"
 
 [programs.bin.agy]
 debian = "curl -fsSL https://antigravity.google/cli/install.sh | bash"
+arch = "yay -S antigravity-cli"
 url = "https://antigravity.google"
 
 [programs.bin.herdr]
 debian = "curl -fsSL https://herdr.dev/install.sh | sh"
+arch = "yay -S herdr"
 url = "https://herdr.dev"
 
 [programs.bin."cursor-agent"]
@@ -447,4 +449,9 @@ url = "https://cursor.com/cli"
 
 [programs.bin.devin]
 debian = "curl -fsSL https://cli.devin.ai/install.sh | bash"
+arch = "curl -fsSL https://cli.devin.ai/install.sh | bash"
 url = "https://devin.ai"
+
+# --- AppImage: ссылка на скачивание (файл едет с ~/.local/bin в dotfiles) ---
+[appimages."freebuff.AppImage"]
+url = "https://freebuff.com/api/desktop/download/linux"

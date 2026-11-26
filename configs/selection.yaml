@@ -15,6 +15,10 @@ group_dotfiles:
 
 group_data:
   on: true                  # не-скрытые каталоги home (Documents, bin, ...)
+  Music: false              # почти пусто — по галочке вручную
+  Videos: false
+  Public: false
+  Templates: false
 
 group_agents:
   on: true                  # сессии/данные бэкапим только zcode и opencode
@@ -47,6 +51,7 @@ group_appdata:
   on: true                  # Throne, обои; Telegram отключен (решение владельца)
   .local/share/TelegramDesktop: false
   .local/share/Throne/config: true
+  .config/freebuff-desktop: true
 
 group_programs:
   on: true                  # переустановка командами на Cachy; отметь нужное
@@ -69,7 +74,8 @@ group_programs:
   qodercli: false
 
 group_browsers:
-  on: true                  # Chrome + Firefox
+  on: true                  # Chrome + Firefox + Freebuff Desktop
+  .config/Freebuff: true
 
 group_flatpak:
   on: true                  # профили flatpak-приложений (.var)
